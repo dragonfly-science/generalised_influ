@@ -1,21 +1,17 @@
-# influ2 <img src="man/figures/logo.png" align="right" height=140/>
+# Generalising influ to arbitrary models
 
 Nokome Bentley's R package `influ` was developed for use with frequentist models 
-fitted in R using the `glm` function. The `infu2` package is the Bayesian 
-couterpart and has been developed for use with `brms`. It works with 
+fitted in R using the `glm` function. 
+
+D Weber's `infu2` package is the Bayesian counterpart and has been developed for use with `brms`. It works with 
 population-level or group-level effects, the Bayesian equivalents of 
-fixed-effects and random-effects. It contains functions for extracting 
-coefficients, calculating the influence of terms, generating CDI plots, step 
-plots, and other diagnostic plots.
+fixed-effects and random-effects.
+
+The persent project explores how the influ concept can be generalised across model types and implementations. 
 
 ## Installation
 
-The `influ2` package can be installed from within R using:
 
-``` r
-library(devtools)
-install_github(repo = "quantifish/influ2", build_vignettes = TRUE)
-```
 
 ## References
 
