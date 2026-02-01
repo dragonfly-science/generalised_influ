@@ -1,33 +1,36 @@
-Package: influ2
-Title: Influence plots
-Version: 1.0.0
-Authors@R: 
+Package: Ginflu
+Title: Influence plots for any models
+Version: 0.0.1
+Authors@R: c(person(given = "Hart",
+           family = "Oxana",
+           role = c("aut"),
+           email = "oxana@dragonfly.co.nz"),
+    person(given = "Philipp",
+           family = "Neubauer",
+           role = c("aut"),
+           email = "philipp@dragonfly.co.nz"),
     person(given = "Darcy",
            family = "Webber",
            role = c("aut", "cre"),
-           email = "darcy.webber@quantifish.co.nz")
-Description: The infu2 package has been developed for use with brms. It works with population-level or group-level effects, linear effects, polynomials, and splines. It contains functions for extracting coefficients, calculating influence statistics for terms, generating CDI plots, step plots, and other diagnostic plots.
-URL: https://github.com/quantifish/influ2, http://www.quantifish.co.nz/influ2/
-BugReports: https://github.com/quantifish/influ2/issues
+           email = "darcy.webber@quantifish.co.nz"))
+Description: A (one paragraph) description of what
+  the package does and why it may be useful.
+BugReports: https://github.com/dragonfly-science/generalised_influ/issues 
 License: MIT + file LICENSE
 Encoding: UTF-8
 Depends:
     R (>= 3.5.0),
-    brms,
     dplyr,
     ggplot2,
     patchwork
 Imports:
     reshape2,
-    proto,
     tidyselect,
     stringr,
     stringi,
-    shiny,
     readr,
     gtable,
     nlme,
-    rstan,
     tidyr,
     lubridate
 Suggests: 
@@ -39,4 +42,4 @@ Suggests:
     bayesplot
 LazyData: false
 VignetteBuilder: knitr
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
