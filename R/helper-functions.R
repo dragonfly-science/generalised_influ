@@ -65,11 +65,17 @@ glm_step_plot <- function(data, mod_list, ibest = 5) {
 #' @export
 #' 
 get_first_term <- function(fit) {
-  if (!is.brmsfit(fit)) stop("fit is not an object of class brmsfit.")
-  f1 <- as.character(fit$formula)[1]
-  f2 <- gsub("~", "+", f1)
-  f3 <- str_split(f2, " \\+ ")[[1]]
-  return(f3[2])
+  if (is.brmsfit(fit)) {
+    f1 <- as.character(fit$formula)[1]
+    f2 <- gsub("~", "+", f1)
+    focus <- str_split(f2, " \\+ ")[[1]][2]
+    
+  }  else if (any(class(fit) %in% c("sdmTMB", "glm", 'survreg'))){
+    focus <- attr(terms(fit), "term.labels")[1]
+    
+  } else stop(paste(class(fit), "model class is not supported."))
+  
+  return(focus)
 }
 
 
@@ -92,7 +98,7 @@ id_var_type <- function(fit, xfocus, hurdle = FALSE) {
     form_split <- str_split(as.character(fit$formula)[1], " \\+ ")[[1]]
     form_var <- form_split[grepl(xfocus, form_split)]
   }
-
+  
   if (!str_detect(xfocus, ":")) {
     form_var <- form_var[!str_detect(form_var, ":")]
   }
