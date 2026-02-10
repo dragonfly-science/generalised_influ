@@ -9,70 +9,117 @@
 #' @import dplyr
 #' @export
 #' 
-get_unstandarsied <- function(fit, year = NULL, rescale = 1, predictor = NULL) {
+get_unstandardised <- function(fit, year = NULL, rescale = 1, predictor = NULL) {
   
   if  (!any(class(fit) %in% c("sdmTMB", "glm", "brmsfit", "survreg"))) stop("This model class is not supported.")
+  
+  is_sdm <- inherits(fit, 'sdmTMB')
   
   if (is.null(year)) {
     year <- get_first_term(fit = fit)
   }
   
-  if( class(fit) == 'brmsfit'){
+  if(inherits(fit, 'brmsfit')){
     
     response <- formula(fit)$formula[[2]]  # 2 is a position of response variable in formulas
     observed <- fit$data[[response]]
     Year <- fit$data[[year]]
     
-  } else if (class(fit) == "sdmTMB"){
+  } else if (is_sdm){
     
-    response <- as.character(formula(fit)[[predictor]][2])
-    observed <- fit$response[,predictor]
+    response <- as.character(formula(fit)[[1]][2])
+    observed <- fit$response[,1]
+    response_pos <- as.character(formula(fit)[[2]][2])
+    observed_pos <- fit$response[,2]
     Year <- fit$data[[year]]
     
-  } else if (class(fit) %in% c("glm", 'survreg')){
+  } else if (inherits(fit, "glm")){
     response <- as.character(formula(fit)[2])
     observed <- fit$model[[response]]
     Year <- fit$model[[year]]
-  } 
-  
-  if (!is.null(fit$family$family) && any(fit$family$family %in% c("bernoulli", "binomial")) | grepl("hurdle", fit$family$family)) {
-# stopped here     9 feb
-    probabilities <- aggregate(list(unstan=fit$model[[response]]),
-                               list(level=.$model$model[,.$focus]),
-                               mean))
     
-    prop <- data.frame(y = fit$data[,1], Year = fit$data[,year]) %>%
-      mutate(y = ifelse(y > 0, 1, 0)) %>%
-      group_by(Year) %>%
-      summarise(p = sum(y) / n())
-    unstd <- data.frame(y = fit$data[,1], Year = fit$data[,year]) %>%
-      filter(y > 0) %>%
-      group_by(Year) %>%
-      summarise(cpue = exp(mean(log(y)))) %>%
-      left_join(prop, by = "Year") %>%
-      mutate(cpue = cpue * p)
+  } else if (inherits(fit, "survreg")){
+    response <- as.character(formula(fit)[2])
+    observed <- fit$model[[response]]
+    observed <- as.numeric(observed[,1])
+    Year <- fit$model[[year]]
+  }
+  
+  logged <- grepl('log(', response, fixed = TRUE)
+  
+  # (1) Binomial component
+  if (!is.null(fit$family$family) && any(fit$family$family %in% c("bernoulli", "binomial") | grepl("hurdle", fit$family$family))) {
+    
+    indices_bin <- aggregate(list(unstan_prob=observed),                        # derive mean by year
+                         list(level=Year),
+                         mean) %>%
+      mutate(unstan_bin = exp(log(unstan_prob)-mean(log(unstan_prob))))         # derive ratio of each index to its geo mean (relative index)
+    
+    indices <-indices_bin
+    
+    # (2) sdmTMB model: Add positive component and combine  
+    if(is_sdm){
+      indices_pos <- aggregate(list(unstan_pos=log(observed_pos)),                        # derive mean by year
+                           list(level=Year),
+                           mean, 
+                           na.rm = TRUE) %>%                                    #removing NA values in positive model
+        mutate(unstan = exp(unstan_pos-mean(unstan_pos)))
+      indices <- left_join(indices_bin, indices_pos, by = "level") %>%
+        mutate(unstan_combined = unstan_bin * unstan_pos,
+               unstan_combined = unstan_combined/geo_mean(unstan_combined))
+    }
+    
+    
+    # Darcy's code
+    # prop <- data.frame(y = fit$data[,1], Year = fit$data[,year]) %>%
+    #   mutate(y = ifelse(y > 0, 1, 0)) %>%
+    #   group_by(Year) %>%
+    #   summarise(p = sum(y) / n())
+    
+    # unstd <- data.frame(y = fit$data[,1], Year = fit$data[,year]) %>%
+    #   filter(y > 0) %>%
+    #   group_by(Year) %>%
+    #   summarise(cpue = exp(mean(log(y)))) %>%
+    #   left_join(prop, by = "Year") %>%
+    #   mutate(cpue = cpue * p)
+    
   } else {
-    unstd <- data.frame(y = fit$data[,1], Year = fit$data[,year]) %>%
-      group_by(Year) %>%
-      summarise(cpue = exp(mean(log(y))))
+    
+    # (3) Positive component
+    
+    if(logged) log_observed = observed else log_observed = log(observed)
+    
+    indices <- aggregate(list(unstan_pos=log_observed),                        # derive mean by year
+                         list(level=Year),
+                         mean) %>%
+      mutate(unstan = exp(unstan_pos-mean(unstan_pos)))               # derive ratio of each index to its geo mean (relative index)
+    
+    # Darcy's code
+    # unstd <- data.frame(y = fit$data[,1], Year = fit$data[,year]) %>%
+    #   group_by(Year) %>%
+    #   summarise(cpue = exp(mean(log(y))))
   }
   
-  gm <- geo_mean(unstd$cpue)
   
-  fout <- unstd %>%
-    mutate(Mean = cpue, Median = cpue) %>%
-    select(-cpue)
-  
-  # Rescale the series
-  if (rescale == "raw") {
-    # nothing to do
-  } else if (is.numeric(rescale)) {
-    fout$Mean <- fout$Mean / gm * rescale
-    fout$Median <- fout$Median / gm * rescale
-  }
-  
-  return(fout)
+  return(indices)
 }
+ # Darcy's code
+#   gm <- geo_mean(unstd$cpue)
+# 
+#   fout <- unstd %>%
+#     mutate(Mean = cpue, Median = cpue) %>%
+#     select(-cpue)
+# 
+#   # Rescale the series
+#   if (rescale == "raw") {
+#     # nothing to do
+#   } else if (is.numeric(rescale)) {
+#     fout$Mean <- fout$Mean / gm * rescale
+#     fout$Median <- fout$Median / gm * rescale
+#   }
+# 
+#   return(fout)
+# }
 
 
 #' Get the standardised indices
@@ -93,9 +140,11 @@ get_unstandarsied <- function(fit, year = NULL, rescale = 1, predictor = NULL) {
 #' @import dplyr
 #' @export
 #' 
-get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do_plot = FALSE, ...) {
+get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do_plot = FALSE, pred_grid = NULL, ...) {
   
-  if  (!any(class(fit) %in% c("sdmTMB", "glm", "brmsfit"))) stop("This model class is not supported.")
+  if  (!inherits(fit, c("sdmTMB", "glm", "survreg", "brmsfit"))) stop("This model class is not supported.")
+  
+  is_sdm <- inherits(fit, 'sdmTMB')
   
   if (is.null(year)) {
     year <- get_first_term(fit = fit)
@@ -182,34 +231,18 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
         relocate(Year, Mean, SD, CV)
     } 
     
-    # Spatio-temporal models
+    
     
   }else if('glm' %in% class(fit)){
     
     
-  }
     
-  }else if('sdmTMB' %in% class(fit)){
+    # Spatio-temporal models
+  }else if(is_sdm) {
     
     
-    # Create newdata for prediction (using fitted)
-    newdata <- fit$data %>% slice(rep(1, n))
-    for (j in 1:ncol(newdata)) {
-      x <- fit$data[,j]
-      if (is.numeric(x)) {
-        if (is.integer(x)) {
-          newdata[,j] <- round(mean(x))
-        }  else {
-          newdata[,j] <- mean(x)
-        }
-      } else {
-        newdata[,j] <- NA
-      }
-      # newdata[,j] <- ifelse(is.numeric(x) & !is.integer(x), mean(x), NA) working on monotonic vars
-      # newdata[,j] <- ifelse(is.numeric(x), mean(x), NA)
-    }
-    newdata[,year] <- yrs
-    newdata$pots <- 1
+    predict_bin <- sdmTMB::predict(fit, newdata = pred_grid, return_tmb_object = TRUE, model = 1)
+    predict_pos <- sdmTMB::predict(fit, newdata = pred_grid, return_tmb_object = TRUE, model = 2)
     
     # Get the predicted CPUE by year
     fout1 <- fitted(object = fit, newdata = newdata, probs = c(probs[1], 0.5, probs[2]), re_formula = NA) %>% 
