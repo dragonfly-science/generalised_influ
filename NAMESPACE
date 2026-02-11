@@ -2,7 +2,7 @@
 
 export(Influence)
 export(coeffs)
-export(geo_mean)
+export(gmean)
 export(get_bayes_R2)
 export(get_coefs)
 export(get_coefs_raw)

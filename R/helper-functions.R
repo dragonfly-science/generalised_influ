@@ -127,6 +127,6 @@ id_var_type <- function(fit, xfocus, hurdle = FALSE) {
 #' @return The geometric mean of the vector.
 #' @export
 #' 
-geo_mean <- function(a) {
+gmean <- function(a) {
   prod(a)^(1.0 / length(a))
 }
