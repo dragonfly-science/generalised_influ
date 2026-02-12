@@ -130,3 +130,13 @@ id_var_type <- function(fit, xfocus, hurdle = FALSE) {
 gmean <- function(a) {
   prod(a)^(1.0 / length(a))
 }
+
+#' Inverse logit
+#' 
+#' @param z a vector.
+#' @return Inverse logit of the vector.
+#' @export
+#' 
+inv_logit <- function(z) {
+  1/(1+exp(-z))
+}

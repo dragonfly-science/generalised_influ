@@ -333,9 +333,7 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
       if (predictor == 1){
         # Binomial Index
         
-        predict_hurdle <- predict(fit, newdata = pred_grid, return_tmb_object = TRUE, nsim = 1000, model = 1, type = "response",
-                                  area_function = function(x, area) x * area,
-                                  agg_function = function(x) sum(x))
+        predict_hurdle <- predict(fit, newdata = pred_grid, return_tmb_object = TRUE, nsim = 1000, model = 1, type = "response")
         
         
         

@@ -1,4 +1,4 @@
-#' Get the standardised indices
+#' Get the standardised indices with terms consecutively added
 #' 
 #' Get the standardised indices each year with associated uncertainty and return either as a table or a ggplot.
 #' 
@@ -16,89 +16,81 @@
 #' @import dplyr
 #' @export
 #' 
-get_index <- function(fit, year = NULL, do_plot = FALSE, pred_grid = NULL, predictor = NULL, ...) {
+get_step <- function(fit, indices = indices, year = NULL, do_plot = FALSE, pred_grid = NULL, predictor = NULL, ...) {
   
   if  (!inherits(fit, c("sdmTMB", "glm", "survreg", "brmsfit"))) stop("This model class is not supported.")
+  
+  year <- get_first_term(fit = fit)
   
   is_sdm <- inherits(fit, 'sdmTMB')
   
   if (is_sdm){
     
+    if  (is.null(predictor)) stop("Argument 'predictor' is missing. Please specify 1 for the first part or 2 for the hurdle part.")
+    
     #extract formula for this predictor
     newFormula <- (fit$formula)[[predictor]]
     
-    #extract tems from this formula
+    # extract terms from this formula
     terms <- stats::terms(newFormula)
     terms_labels <- attr(terms, "term.labels")
     
-    for(termCount in 0:length(terms_labels)){
+    # initiate effects list
+    effects <- list()
+    
+    # Create models with terms successively added
+    for(termCount in 0:(length(terms_labels)+2)){
       
       if(termCount>0){
         
-        term = terms_labels[termCount]
+        term <- terms_labels[termCount]
         
         #Update both formula and model
         
-        newFormula = update.formula(newFormula,
-                                    formula(paste("~ 0 + ",
-                                                  paste(paste(terms_labels[1:termCount],
-                                                              collapse='+')))))
+        newFormula <- update.formula(newFormula,
+                                     formula(paste("~ 0 + ",
+                                                   paste(paste(terms_labels[1:min(termCount,length(terms_labels)) ],
+                                                               collapse='+')))))
         
-        model = update(fit, formula = newFormula, evaluate = TRUE)
         
-        # STOPPED HERE ON fEB 11
         
-        #Get index for this model
-        index = rep(NA, nrow(.$indices))
-        index_index = 1:length(index) %w/o% .$excl
-        index[index_index] = .$effects(model,excl=.$excl)
+        # Turn spatial and/or spatio-temporal component on
+        spatial <- ifelse(termCount<=length(terms_labels), 'off', fit$spatial[predictor])
+        spatiotemp <- ifelse(termCount<=length(terms_labels)+1, 'off', fit$spatiotemporal[predictor])
         
-        #Add column to .$indices
-        .$indices = cbind(.$indices,index)
+        # refit the model
+        fit_reduced <- update(fit, formula = newFormula, evaluate = TRUE, spatial = spatial, spatiotemporal = spatiotemp)
         
-        #Give index column the right hand side of formula as name
-        names(.$indices)[ncol(.$indices)] = if(termCount==1) term else paste('+',term)
+        # Get index for this model
+        idx_reduced <- get_index (fit_reduced,  pred_grid = pred_grid, predictor = predictor)
+        print(summary(fit_reduced))
+        # Generate the right hand side of formula as name for index
+        idx_name <- case_when(
+          termCount == 1                           ~ term,
+          termCount == length(terms_labels) + 2    ~ "+ spatiotemporal",
+          termCount == length(terms_labels) + 1    ~ "+ spatial",
+          TRUE                                     ~ paste("+", term)
+        )
+        
+        # Store column of indices
+        effects[[idx_name]] <- idx_reduced$stan
+        
       } else {
         term = 'intercept'
-        model = update(.$model,.~1)
+        fit_reduced = update(fit,.~1)
       }
       
-      type = class(model)[1]
-      logLike =  switch(type,
-                        survreg = model$loglik[2],
-                        logLik(model)
-      )
-      fitted = switch(type,
-                      survreg = predict(model,type='response'),
-                      fitted(model)
-      )
-      
-      #Sums-of-squared based R2 based on log(observed) and log(fitted)
-      if(termCount==0) r2 = 0
-      else r2 = cor(log(observed),
-                    log(fitted))^2
-      
-      #Deviance pseudo-R2
-      r2Dev = (model$null.deviance-model$deviance)/model$null.deviance
-      if(length(r2Dev)==0)
-        r2Dev = NA
-      
-      #Negelkerke pseudo-R2
-      if(termCount==0)
-        logLikeInterceptOnly = logLike
-      
-      n = length(observed)
-      r2Negel = (1-exp((logLikeInterceptOnly-logLike)*(2/n)))/(1-exp(logLikeInterceptOnly*(2/n)))
-      
-      .$summary = rbind(.$summary,data.frame(term = term,
-                                             k = length(coef(model)),
-                                             logLike = logLike,
-                                             aic = extractAIC(model)[2],
-                                             r2 = r2,
-                                             r2Dev = r2Dev,
-                                             r2Negel = r2Negel)
-      )
+      # TO DO calculate summary statistics here
     }
+    #  Combine all the effect columns into one wide data frame
+    all_idx <- do.call(cbind, effects)
     
+    #  Final bind indices from last iteration with unstan and CI + all the steps 
+    indices <- cbind(idx_reduced, all_idx)    
+    rownames(indices) <- NULL       
   }
+  return(indices)
 }
+      
+      
+      
