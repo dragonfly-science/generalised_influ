@@ -247,69 +247,39 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
   }else if('glm' %in% class(fit)){
   # GLMs
     
+    V <- summary(fit)$cov.scaled
+    rows <- grep(paste0("^", year), row.names(V))
     
-    # coeffs = .$coeffs()
-    # 
-    # if (!is.null(.$model$family$family) && .$model$family$family=='binomial') {
-    #   
-    #   V = summary(.$model)$cov.scaled
-    #   rows = c(1,which(substr(row.names(V),
-    #                           1,
-    #                           nchar(.$focus))==.$focus))
-    #   
-    #   cfs = coefficients(.$model)
-    #   int <- logit(aggregate(list(unstan=.$model$model[,.$response]),
-    #                          list(level=.$model$model[,.$focus]),
-    #                          mean)$unstan)[1]
-    #   cfs[1] <- int
-    #   
-    #   bin <- mvtnorm::rmvnorm(1000,cfs,V)[,rows]
-    #   bin <- cbind(inv_logit(bin[,1]),inv_logit(bin[,1] + bin[,2:length(fyear)]))
-    #   
-    #   excl <- which(apply(bin,2,function(c) any(c==1 | c==0)))
-    #   
-    #   bin[,excl] <- NA
-    #   coeffs[excl] <- NA
-    #   
-    #   if(length(excl)>0){
-    #     .$excl=excl
-    #     .$indices$unstan = aggregate(list(unstan=observed),
-    #                                  list(level=.$model$model[,.$focus]),
-    #                                  mean)$unstan
-    #     # Turn into a relative index; keep excluded values for display, but don't use these in the mean
-    #     .$indices$unstan = with(.$indices,(unstan/unstan[1]))
-    #     .$indices$unstan = with(.$indices,exp(log(unstan)-mean(log(unstan[-excl]), na.rm=T)))
-    #   }
-    #   
-    #   base = mean(coeffs, na.rm = T)
-    #   .$indices$stan <- exp(coeffs-base)
-    #   
-    #   bin_rel <- apply(bin,1,function(x) x/gmean(x[x>exp(-10) & !is.na(x) & x<exp(-1e-7)]))
-    #   bin_idx <- apply(bin_rel,1,function(x) c(index = mean(x,na.rm=T),
-    #                                            q1 = quantile(x,0.025,na.rm=T),
-    #                                            q3 = quantile(x,0.975,na.rm=T)))
-    #   
-    #   .$indices$stanLower = bin_idx[2,]
-    #   .$indices$stanUpper = bin_idx[3,]
-    #   
-    #   # Keep non-relative (probability) values
-    #   .$probabilities$stan <- exp(coeffs)
-    #   bin_p_idx <- apply(bin,2,function(x) c(index = mean(x,na.rm=T),
-    #                                          q1 = quantile(x,0.025,na.rm=T),
-    #                                          q3 = quantile(x,0.975,na.rm=T)))
-    #   
-    #   .$probabilities$stanLower = bin_p_idx[2,]
-    #   .$probabilities$stanUpper = bin_p_idx[3,]
-    #   
-    # } else {
-    #   base = mean(coeffs)
-    #   .$indices$stan = exp(coeffs-base)
-    #   ses = .$ses()
-    #   .$indices$stanLower = exp(coeffs-base-2*ses)
-    #   .$indices$stanUpper = exp(coeffs-base+2*ses)
-    # }
-    # 
-    # 
+    cfs <- coefficients(fit)
+    
+    index_glm <- mvtnorm::rmvnorm(1000,cfs,V)[,rows] 
+    colnames(index_glm) <- gsub(year, "", colnames(index_glm))
+    
+    if (!is.null(fit$family$family) && any(fit$family$family %in% c("bernoulli", "binomial"))){
+      index_glm <- inv_logit(index_glm)
+    }
+   
+    index_glm <- index_glm %>%
+      as_data_frame() %>%
+      mutate(.iteration = row_number()) %>%
+      pivot_longer(cols = -.iteration,
+                   names_to = 'level',
+                   values_to = '.value') %>%
+      group_by(.iteration) %>%
+      mutate(
+        level = factor(level),
+        rel_idx = .value / gmean(.value)
+      ) %>%
+      ungroup() %>%
+      group_by(level) %>%
+      summarise(
+        stan = median(rel_idx),
+        stanLower = quantile(rel_idx, 0.025),
+        stanUpper = quantile(rel_idx, 0.975)
+      )
+    
+    indices <- indices %>%
+      left_join(index_glm,  by = 'level')
   
   }else if(is_sdm) {
   # Spatio-temporal models 

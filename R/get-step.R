@@ -16,81 +16,92 @@
 #' @import dplyr
 #' @export
 #' 
-get_step <- function(fit, indices = indices, year = NULL, do_plot = FALSE, pred_grid = NULL, predictor = NULL, ...) {
+get_step <- function(fit, pred_grid = NULL, predictor = NULL) {
   
   if  (!inherits(fit, c("sdmTMB", "glm", "survreg", "brmsfit"))) stop("This model class is not supported.")
-  
-  year <- get_first_term(fit = fit)
   
   is_sdm <- inherits(fit, 'sdmTMB')
   
   if (is_sdm){
     
     if  (is.null(predictor)) stop("Argument 'predictor' is missing. Please specify 1 for the first part or 2 for the hurdle part.")
-    
-    #extract formula for this predictor
     newFormula <- (fit$formula)[[predictor]]
+    sptp_on <- fit$spatiotemporal[predictor]!="off"
+  } else {
+    newFormula <- (fit$formula)
+    sptp_on <- FALSE
+  }
+  
+  
+  # extract terms from this formula
+  terms <- stats::terms(newFormula)
+  terms_labels <- attr(terms, "term.labels")
+  
+  # initiate effects list
+  effects <- list()
+  
+  # Create models with terms successively added
+  for(termCount in 0:(length(terms_labels)+is_sdm + sptp_on)){
     
-    # extract terms from this formula
-    terms <- stats::terms(newFormula)
-    terms_labels <- attr(terms, "term.labels")
-    
-    # initiate effects list
-    effects <- list()
-    
-    # Create models with terms successively added
-    for(termCount in 0:(length(terms_labels)+2)){
+    if(termCount>0){
       
-      if(termCount>0){
-        
-        term <- terms_labels[termCount]
-        
-        #Update both formula and model
-        
-        newFormula <- update.formula(newFormula,
-                                     formula(paste("~ 0 + ",
-                                                   paste(paste(terms_labels[1:min(termCount,length(terms_labels)) ],
-                                                               collapse='+')))))
-        
-        
-        
+      term <- terms_labels[termCount]
+      
+      # Update both formula and model
+      
+      newFormula <- update.formula(newFormula,
+                                   formula(paste("~ 0 + ",
+                                                 paste(paste(terms_labels[1:min(termCount,length(terms_labels)) ],
+                                                             collapse='+')))))
+      
+      
+      
+      
+      
+      # construct model call, but do not evaluate yet
+      mod_call <- update(fit, formula = newFormula, evaluate = FALSE)
+      
+      # conditionally add spatiotemoral terms to model call
+      if(is_sdm){
         # Turn spatial and/or spatio-temporal component on
-        spatial <- ifelse(termCount<=length(terms_labels), 'off', fit$spatial[predictor])
-        spatiotemp <- ifelse(termCount<=length(terms_labels)+1, 'off', fit$spatiotemporal[predictor])
-        
-        # refit the model
-        fit_reduced <- update(fit, formula = newFormula, evaluate = TRUE, spatial = spatial, spatiotemporal = spatiotemp)
-        
-        # Get index for this model
-        idx_reduced <- get_index (fit_reduced,  pred_grid = pred_grid, predictor = predictor)
-        print(summary(fit_reduced))
-        # Generate the right hand side of formula as name for index
-        idx_name <- case_when(
-          termCount == 1                           ~ term,
-          termCount == length(terms_labels) + 2    ~ "+ spatiotemporal",
-          termCount == length(terms_labels) + 1    ~ "+ spatial",
-          TRUE                                     ~ paste("+", term)
-        )
-        
-        # Store column of indices
-        effects[[idx_name]] <- idx_reduced$stan
-        
-      } else {
-        term = 'intercept'
-        fit_reduced = update(fit,.~1)
+        # spatial on only if this iteration is after all terms were added
+        mod_call$spatial <- ifelse(termCount<=length(terms_labels), 'off', fit$spatial[predictor])
+        # spatiotemporal 'on' only if this is the last iteration AND original fit has it 'on'
+        mod_call$spatiotemp <- ifelse(termCount!=length(terms_labels)+2, 'off', fit$spatiotemporal[predictor])
       }
       
-      # TO DO calculate summary statistics here
+      # refit the model
+      fit_reduced <- eval(mod_call)
+      
+      # Get index for this model
+      idx_reduced <- get_index (fit_reduced,  pred_grid = pred_grid, predictor = predictor)
+      print(summary(fit_reduced))
+      # Generate the right hand side of formula as name for index
+      idx_name <- case_when(
+        termCount == 1                           ~ term,
+        termCount == length(terms_labels) + 2    ~ "+ spatiotemporal",
+        termCount == length(terms_labels) + 1    ~ "+ spatial",
+        TRUE                                     ~ paste("+", term)
+      )
+      
+      # Store column of indices
+      effects[[idx_name]] <- idx_reduced$stan
+      
+    } else {
+      term = 'intercept'
+      fit_reduced = update(fit,.~1)
     }
-    #  Combine all the effect columns into one wide data frame
-    all_idx <- do.call(cbind, effects)
     
-    #  Final bind indices from last iteration with unstan and CI + all the steps 
-    indices <- cbind(idx_reduced, all_idx)    
-    rownames(indices) <- NULL       
+    # TO DO calculate summary statistics here
+    
   }
+  #  Combine all the effect columns into one wide data frame
+  all_idx <- do.call(cbind, effects)
+  
+  #  Final bind indices from last iteration with unstan and CI + all the steps 
+  indices <- cbind(idx_reduced, all_idx)  
+  
   return(indices)
 }
-      
-      
-      
+
+
