@@ -256,7 +256,7 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
     colnames(index_glm) <- gsub(year, "", colnames(index_glm))
     
     if (!is.null(fit$family$family) && any(fit$family$family %in% c("bernoulli", "binomial"))){
-      index_glm <- inv_logit(index_glm)
+      index_glm <- log(inv_logit(index_glm))
     }
    
     index_glm <- index_glm %>%
@@ -268,7 +268,7 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
       group_by(.iteration) %>%
       mutate(
         level = factor(level),
-        rel_idx = .value / gmean(.value)
+        rel_idx = exp(.value - mean(.value))
       ) %>%
       ungroup() %>%
       group_by(level) %>%
@@ -304,7 +304,6 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
         # Binomial Index
         
         predict_hurdle <- predict(fit, newdata = pred_grid, return_tmb_object = TRUE, nsim = 1000, model = 1, type = "response")
-        
         
         
       } else if (predictor == 2){

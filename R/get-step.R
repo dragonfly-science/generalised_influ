@@ -67,7 +67,7 @@ get_step <- function(fit, pred_grid = NULL, predictor = NULL) {
         # spatial on only if this iteration is after all terms were added
         mod_call$spatial <- ifelse(termCount<=length(terms_labels), 'off', fit$spatial[predictor])
         # spatiotemporal 'on' only if this is the last iteration AND original fit has it 'on'
-        mod_call$spatiotemp <- ifelse(termCount!=length(terms_labels)+2, 'off', fit$spatiotemporal[predictor])
+        mod_call$spatiotemporal <- ifelse(termCount!=length(terms_labels)+2, 'off', fit$spatiotemporal[predictor])
       }
       
       # refit the model
