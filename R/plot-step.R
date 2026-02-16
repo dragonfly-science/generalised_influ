@@ -60,3 +60,60 @@ plot_step <- function(fits, year = NULL, fill = "purple",
   
   return(p)
 }
+
+#' This requires that all steps be run using brms and then provided as a list of model fits.
+#' 
+#' @param step_df dataframe generated weith get_step() function
+#' @import ggplot2
+#' @import dplyr
+#' @export
+#' 
+#' 
+#' 
+plot_step2 <- function(step_df){
+  model_names <- names(step_df)[7:ncol(step_df)]
+  
+  df_long <- step_df %>%
+    select(Year = level, all_of(model_names)) %>%
+    pivot_longer(-Year, names_to = "Model", values_to = "Stan") %>%
+    mutate(Model = factor(Model, levels = model_names)) # Keeps them in order
+  
+  # Generate the background data for every facet
+  # For each step, we take all data from that step and all previous steps
+  df_all_steps <- map_dfr(seq_along(model_names), function(i) {
+    df_long %>%
+      filter(as.numeric(Model) <= i) %>%
+      mutate(
+        FacetTarget = factor(model_names[i]),
+        LineType = case_when(
+          as.numeric(Model) == i     ~ "Current",
+          as.numeric(Model) == i - 1 ~ "Previous",
+          TRUE                       ~ "Historical"
+        )
+      )
+  })
+  p <- ggplot(df_all_steps, aes(x = Year, y = Stan, group = Model)) +
+    # Historical lines (grey)
+    geom_line(data = filter(df_all_steps, LineType == "Historical"), 
+              color = "grey85") +
+    # Previous line (dashed)
+    geom_line(data = filter(df_all_steps, LineType == "Previous"), 
+              linetype = "dashed", color = "black") +
+    # Current line (blue)
+    geom_line(data = filter(df_all_steps, LineType == "Current"), 
+              color = "royalblue", linewidth = 1) +
+    geom_text(data = distinct(df_all_steps, Model, FacetTarget), 
+              aes(label = FacetTarget, x = -Inf, y = -Inf), # -Inf/-Inf is the bottom-left
+              hjust = -0.1, vjust = -0.5,                   # Small nudge inward
+              size = 3.5 ) +
+    facet_wrap(~FacetTarget, ncol = 1) +
+    theme_cowplot() +
+    theme(
+      strip.background = element_blank(), 
+      strip.text = element_blank(),       
+      panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.5), 
+      panel.spacing = unit(0, "lines")
+    )
+  
+  return(p)
+}

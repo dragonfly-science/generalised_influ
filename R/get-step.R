@@ -75,7 +75,7 @@ get_step <- function(fit, pred_grid = NULL, predictor = NULL) {
       
       # Get index for this model
       idx_reduced <- get_index (fit_reduced,  pred_grid = pred_grid, predictor = predictor)
-      print(summary(fit_reduced))
+      # print(summary(fit_reduced))
       # Generate the right hand side of formula as name for index
       idx_name <- case_when(
         termCount == 1                           ~ term,

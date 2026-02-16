@@ -4,28 +4,20 @@
 \alias{get_step}
 \title{Get the standardised indices with terms consecutively added}
 \usage{
-get_step(
-  fit,
-  indices = indices,
-  year = NULL,
-  do_plot = FALSE,
-  pred_grid = NULL,
-  predictor = NULL,
-  ...
-)
+get_step(fit, pred_grid = NULL, predictor = NULL)
 }
 \arguments{
 \item{fit}{An object of class \code{brmsfit}.}
 
 \item{year}{The year or time label (e.g. year, Year, fishing_year, etc).}
 
-\item{do_plot}{Return a \code{ggplot} object instead of a \code{data.frame}.}
-
-\item{...}{Additional parameters passed to \code{fitted}.}
-
 \item{probs}{The percentiles to be computed by the \code{quantile} function.}
 
 \item{rescale}{How to re-scale the series. Choose from "raw" to retain the raw series, "unstandardised" to re-scale to the geometric mean of the unstandardised series, or a number to re-scale by.}
+
+\item{do_plot}{Return a \code{ggplot} object instead of a \code{data.frame}.}
+
+\item{...}{Additional parameters passed to \code{fitted}.}
 }
 \value{
 a \code{data.frame} or a \code{ggplot} object.
