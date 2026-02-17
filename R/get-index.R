@@ -21,37 +21,36 @@ get_unstandardised <- function(fit, year = NULL, rescale = 1, predictor = NULL) 
   
   if(inherits(fit, 'brmsfit')){
     
-    response <- formula(fit)$formula[[2]]  # 2 is a position of response variable in formulas
-    observed <- fit$data[[response]]
-    Year <- fit$data[[year]]
+    response_name <- formula(fit)$formula[[2]]  # 2 is a position of response variable in formulas
+    observed <- fit$data[[response_name]]
     
   } else if (is_sdm){
     
-    response <- as.character(formula(fit)[[1]][2])
     observed <- fit$response[,1]
-    response_pos <- as.character(formula(fit)[[2]][2])
     observed_pos <- fit$response[,2]
-    Year <- fit$data[[year]]
     
   } else if (inherits(fit, "glm")){
-    response <- as.character(formula(fit)[2])
-    observed <- fit$model[[response]]
-    Year <- fit$model[[year]]
+    
+    response_name <- as.character(formula(fit)[2])
+    observed <- fit$model[[response_name]]
     
   } else if (inherits(fit, "survreg")){
-    response <- as.character(formula(fit)[2])
-    observed <- fit$model[[response]]
+    
+    response_name <- as.character(formula(fit)[2])
+    observed <- fit$model[[response_name]]
     observed <- as.numeric(observed[,1])
-    Year <- fit$model[[year]]
+    
   }
   
-  logged <- grepl('log(', response, fixed = TRUE)
+  year_vec <- model.frame(fit)[[year]]
   
-  # (1) Binomial component
+  logged <- grepl('log(', response_name, fixed = TRUE)
+  
+  # (1) Binomial component only
   if (!is.null(fit$family$family) && any(fit$family$family %in% c("bernoulli", "binomial") | grepl("hurdle", fit$family$family))) {
     
     indices_bin <- aggregate(list(unstan_prob=observed),                        # derive mean by year
-                             list(level=Year),
+                             list(level=year_vec),
                              mean) %>%
       mutate(unstan = exp(log(unstan_prob)-mean(log(unstan_prob))))         # derive ratio of each index to its geo mean (relative index)
     
@@ -60,7 +59,7 @@ get_unstandardised <- function(fit, year = NULL, rescale = 1, predictor = NULL) 
     # (2) sdmTMB model: Add positive component and combine  
     if(is_sdm){
       indices_pos <- aggregate(list(unstan=log(observed_pos)),                        # derive mean by year
-                               list(level=Year),
+                               list(level=year_vec),
                                mean, 
                                na.rm = TRUE) %>%                                    #removing NA values in positive model
         mutate(unstan = exp(unstan-mean(unstan)))
@@ -94,12 +93,12 @@ get_unstandardised <- function(fit, year = NULL, rescale = 1, predictor = NULL) 
     
   } else {
     
-    # (3) Positive component
+    # (3) Positive component only
     
     if(logged) log_observed = observed else log_observed = log(observed)
     
     indices <- aggregate(list(unstan_pos=log_observed),                        # derive mean by year
-                         list(level=Year),
+                         list(level=year_vec),
                          mean) %>%
       mutate(unstan = exp(unstan_pos-mean(unstan_pos)))               # derive ratio of each index to its geo mean (relative index)
     
@@ -144,6 +143,7 @@ get_unstandardised <- function(fit, year = NULL, rescale = 1, predictor = NULL) 
 #' @return a \code{data.frame} or a \code{ggplot} object.
 #' @importFrom stats fitted
 #' @importFrom brms is.brmsfit
+#' @import insight
 #' @import ggplot2
 #' @import patchwork
 #' @import dplyr
@@ -153,136 +153,154 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
   
   if  (!inherits(fit, c("sdmTMB", "glm", "survreg", "brmsfit"))) stop("This model class is not supported.")
   
+  ##################################
+  # Get all the necessary variables
+  ##################################
   is_sdm <- inherits(fit, 'sdmTMB')
   
+  # Unstan indices
   indices <- get_unstandardised(fit = fit, predictor = predictor)
   
+  # Name if first term
   if (is.null(year)) {
     year <- get_first_term(fit = fit)
   }
+  # levels of fyear
+  yrs <-  sort(unique(model.frame(fit)[[year]]))
   
-  yrs <-  sort(unique(fit$data[[year]]))
+  # number of years
   n <- length(yrs)
+  
+  # model data
+  raw_data <- insight::get_data(fit)
+  
+  # name of the response variable
+  response_name <- insight::find_response(fit)
+  
+  ###################################
+  # Create  data for prediction
+  ###################################
+  
+  newdata <- raw_data %>%
+    dplyr::select(-all_of(year), -all_of(response_name)) %>%
+    summarise(across(everything(), ~mean_or_mode(.x))) %>%
+    tidyr::expand_grid(!!year := yrs )
   
   
   if (is.brmsfit(fit)) {
     
-    # Create newdata for prediction (using fitted)
-    newdata <- fit$data %>% slice(rep(1, n))
-    for (j in 1:ncol(newdata)) {
-      x <- fit$data[,j]
-      if (is.numeric(x)) {
-        if (is.integer(x)) {
-          newdata[,j] <- round(mean(x))
-        }  else {
-          newdata[,j] <- mean(x)
-        }
-      } else {
-        newdata[,j] <- NA
-      }
-      # newdata[,j] <- ifelse(is.numeric(x) & !is.integer(x), mean(x), NA) working on monotonic vars
-      # newdata[,j] <- ifelse(is.numeric(x), mean(x), NA)
-    }
-    newdata[,year] <- yrs
-    newdata$pots <- 1
+    draws <- fitted(object = fit, newdata = newdata, probs = c(probs[1], 0.5, probs[2]), re_formula = NA, scale = 'linear', summary = F)
     
-    # Get the predicted CPUE by year
-    fout1 <- fitted(object = fit, newdata = newdata, probs = c(probs[1], 0.5, probs[2]), re_formula = NA) %>% 
-      data.frame() %>%
-      rename(Qlower = 3, Qupper = 5) %>% # this renames the 3rd and the 5th columns
-      mutate(CV = Est.Error / Estimate) %>% # CV = SD / mu
-      mutate(Year = yrs) %>%
-      mutate(Model = as.character(fit$formula)[1], Distribution = as.character(fit$family)[1], Link = as.character(fit$family)[2])
+    colnames(draws) <- yrs
     
-    # Rescale the predicted CPUE. The options are:
-    # 1. raw - don't rescale
-    # 2. one - rescale so that the series has a geometric mean of one
-    # 3. unstandardised - rescale to the geometric mean of the unstandardised series
-    # 4. a user defined number
-    fout <- fout1
-    if (rescale == "raw") {
-      # nothing to do
-    } else if (rescale == "unstandardised") {
-      unstd <- get_unstandarsied(fit = fit, year = year, rescale = "raw")
-      gm <- geo_mean(unstd$Mean)
-      fout$Estimate <- fout$Estimate / geo_mean(fout$Estimate) * gm
-      fout$Qlower <- fout$Qlower / geo_mean(fout$Q50) * gm
-      fout$Qupper <- fout$Qupper / geo_mean(fout$Q50) * gm
-      fout$Q50 <- fout$Q50 / geo_mean(fout$Q50) * gm
-    } else if (is.numeric(rescale)) {
-      fout$Estimate <- fout$Estimate / geo_mean(fout$Estimate) * rescale
-      fout$Qlower <- fout$Qlower / geo_mean(fout$Q50) * rescale
-      fout$Qupper <- fout$Qupper / geo_mean(fout$Q50) * rescale
-      fout$Q50 <- fout$Q50 / geo_mean(fout$Q50) * rescale
-    }
-    fout$Est.Error <- fout$CV * fout$Estimate # SD = CV * mu
-    
-    if (do_plot) {
-      p1 <- ggplot(data = fout1, aes(x = Year)) +
-        geom_errorbar(aes(y = Q50, ymin = Qlower, ymax = Qupper)) +
-        geom_point(aes(y = Q50)) +
-        geom_errorbar(aes(y = Estimate, ymin = Estimate - Est.Error, ymax = Estimate + Est.Error), colour = "red", alpha = 0.75) +
-        geom_point(aes(y = Estimate), colour = "red", alpha = 0.75) +
-        theme_bw()
-      
-      p2 <- ggplot(fout, aes(x = Year)) +
-        geom_errorbar(aes(y = Q50, ymin = Qlower, ymax = Qupper)) +
-        geom_point(aes(y = Q50)) +
-        geom_errorbar(aes(y = Estimate, ymin = Estimate - Est.Error, ymax = Estimate + Est.Error), colour = "red", alpha = 0.75) +
-        geom_point(aes(y = Estimate), colour = "red", alpha = 0.75) +
-        theme_bw()
-      return(p1 + p2)
-    } else {
-      # Rename and reorder columns
-      fout <- fout %>%
-        rename(Mean = Estimate, SD = Est.Error, Median = Q50) %>%
-        mutate(Qlow = Qlower, Qup = Qupper) %>%
-        rename_with(~paste0("Q", probs[1] * 100), Qlow) %>%
-        rename_with(~paste0("Q", probs[2] * 100), Qup) %>%
-        relocate(Year, Mean, SD, CV)
-    } 
-    
-    
-    
-  }else if('glm' %in% class(fit)){
-  # GLMs
-    
-    V <- summary(fit)$cov.scaled
-    rows <- grep(paste0("^", year), row.names(V))
-    
-    cfs <- coefficients(fit)
-    
-    index_glm <- mvtnorm::rmvnorm(1000,cfs,V)[,rows] 
-    colnames(index_glm) <- gsub(year, "", colnames(index_glm))
-    
-    if (!is.null(fit$family$family) && any(fit$family$family %in% c("bernoulli", "binomial"))){
-      index_glm <- log(inv_logit(index_glm))
-    }
-   
-    index_glm <- index_glm %>%
+    draws %<>%
       as_data_frame() %>%
       mutate(.iteration = row_number()) %>%
       pivot_longer(cols = -.iteration,
                    names_to = 'level',
-                   values_to = '.value') %>%
-      group_by(.iteration) %>%
-      mutate(
-        level = factor(level),
-        rel_idx = exp(.value - mean(.value))
-      ) %>%
-      ungroup() %>%
-      group_by(level) %>%
-      summarise(
-        stan = median(rel_idx),
-        stanLower = quantile(rel_idx, 0.025),
-        stanUpper = quantile(rel_idx, 0.975)
-      )
+                   values_to = '.value') 
     
-    indices <- indices %>%
-      left_join(index_glm,  by = 'level')
-  
+    # Get the predicted CPUE by year
+    # fout1 <- fitted(object = fit, newdata = newdata, probs = c(probs[1], 0.5, probs[2]), re_formula = NA) %>% 
+    #   data.frame() %>%
+    #   rename(Qlower = 3, Qupper = 5) %>% # this renames the 3rd and the 5th columns
+    #   mutate(CV = Est.Error / Estimate) %>% # CV = SD / mu
+    #   mutate(Year = yrs) %>%
+    #   mutate(Model = as.character(fit$formula)[1], Distribution = as.character(fit$family)[1], Link = as.character(fit$family)[2])
+    
+    # # Rescale the predicted CPUE. The options are:
+    # # 1. raw - don't rescale
+    # # 2. one - rescale so that the series has a geometric mean of one
+    # # 3. unstandardised - rescale to the geometric mean of the unstandardised series
+    # # 4. a user defined number
+    # fout <- fout1
+    # if (rescale == "raw") {
+    #   # nothing to do
+    # } else if (rescale == "unstandardised") {
+    #   unstd <- get_unstandarsied(fit = fit, year = year, rescale = "raw")
+    #   gm <- geo_mean(unstd$Mean)
+    #   fout$Estimate <- fout$Estimate / geo_mean(fout$Estimate) * gm
+    #   fout$Qlower <- fout$Qlower / geo_mean(fout$Q50) * gm
+    #   fout$Qupper <- fout$Qupper / geo_mean(fout$Q50) * gm
+    #   fout$Q50 <- fout$Q50 / geo_mean(fout$Q50) * gm
+    # } else if (is.numeric(rescale)) {
+    #   fout$Estimate <- fout$Estimate / geo_mean(fout$Estimate) * rescale
+    #   fout$Qlower <- fout$Qlower / geo_mean(fout$Q50) * rescale
+    #   fout$Qupper <- fout$Qupper / geo_mean(fout$Q50) * rescale
+    #   fout$Q50 <- fout$Q50 / geo_mean(fout$Q50) * rescale
+    # }
+    # fout$Est.Error <- fout$CV * fout$Estimate # SD = CV * mu
+    
+    # if (do_plot) {
+    #   p1 <- ggplot(data = fout1, aes(x = Year)) +
+    #     geom_errorbar(aes(y = Q50, ymin = Qlower, ymax = Qupper)) +
+    #     geom_point(aes(y = Q50)) +
+    #     geom_errorbar(aes(y = Estimate, ymin = Estimate - Est.Error, ymax = Estimate + Est.Error), colour = "red", alpha = 0.75) +
+    #     geom_point(aes(y = Estimate), colour = "red", alpha = 0.75) +
+    #     theme_bw()
+    #   
+    #   p2 <- ggplot(fout, aes(x = Year)) +
+    #     geom_errorbar(aes(y = Q50, ymin = Qlower, ymax = Qupper)) +
+    #     geom_point(aes(y = Q50)) +
+    #     geom_errorbar(aes(y = Estimate, ymin = Estimate - Est.Error, ymax = Estimate + Est.Error), colour = "red", alpha = 0.75) +
+    #     geom_point(aes(y = Estimate), colour = "red", alpha = 0.75) +
+    #     theme_bw()
+    #   return(p1 + p2)
+    # } else {
+    # Rename and reorder columns
+    # index_brms <- fout %>%
+    #   rename(Mean = Estimate, SD = Est.Error, Median = Q50) %>%
+    #   mutate(Qlow = Qlower, Qup = Qupper) %>%
+    #   rename_with(~paste0("Q", probs[1] * 100), Qlow) %>%
+    #   rename_with(~paste0("Q", probs[2] * 100), Qup) %>%
+    #   relocate(Year, Mean, SD, CV)
+    #   } 
+    
+    
+    
+  }else if('glm' %in% class(fit)){
+    # GLMs
+    
+    # Extract covariance matrix
+    V <- summary(fit)$cov.scaled
+    
+    # Extract model coeffs
+    cfs <- coefficients(fit)
+    
+    # Create draws of model coeffs
+    beta_draws <- mvtnorm::rmvnorm(1000,cfs,V)
+    
+    # Force the levels in newdata to match the levels in raw_data
+    for (col_name in names(newdata)) {
+      if (is.factor(raw_data[[col_name]])) {
+        newdata[[col_name]] <- factor(newdata[[col_name]], 
+                                      levels = levels(raw_data[[col_name]]))
+      }
+    }
+    
+    # Model matrix for new data
+    X <- model.matrix(delete.response(terms(fit)), data = newdata)
+    
+    # Predicted response for new data
+    draws <- beta_draws %*% t(X)
+    
+    # Bring to log-scale for binomila component
+    if (!is.null(fit$family$family) && any(fit$family$family %in% c("bernoulli", "binomial"))){
+      draws <- log(inv_logit(draws))
+    }
+    
+    # Prepare df for index derivation
+    colnames(draws) <- yrs
+    
+    draws %<>%
+      as_data_frame() %>%
+      mutate(.iteration = row_number()) %>%
+      pivot_longer(cols = -.iteration,
+                   names_to = 'level',
+                   values_to = '.value') 
+    
   }else if(is_sdm) {
-  # Spatio-temporal models 
+    # Spatio-temporal models 
     
     if (is.null(predictor)) {
       # Combined index
@@ -312,26 +330,37 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
         predict_hurdle <- predict(fit, newdata = pred_grid, return_tmb_object = TRUE, nsim = 1000, model = 2)
         
       }
-      index_sdm <- sdmTMB::get_index_sims(predict_hurdle, return_sims = T) %>% # need to think about the area here
-          rename(level = !!sym(year)) %>%
-          group_by(.iteration) %>%
-          mutate(
-            level = factor(level),
-            rel_idx = .value / gmean(.value)
-          ) %>%
-          ungroup() %>%
-          group_by(level) %>%
-          summarise(
-            stan = median(rel_idx),
-            stanLower = quantile(rel_idx, 0.025),
-            stanUpper = quantile(rel_idx, 0.975)
-          )
+      
+      # generate draws of indices
+      draws <- sdmTMB::get_index_sims(predict_hurdle, return_sims = T) %>% # need to think about the area here
+        rename(level = !!sym(year)) 
       
     }
     
-    indices <- indices %>%
-      left_join(index_sdm,  by = 'level')
-  } 
+  }
+  
+  # This step is common to all models
+  # Do geometric mean transformation to draws, then summarise to fin medians and quantiles
+  
+ 
+  
+  index_stan <- draws %>%
+    
+    group_by(.iteration) %>%
+    mutate(
+      level = factor(level),
+      rel_idx = exp(.value - mean(.value))
+    ) %>%
+    ungroup() %>%
+    group_by(level) %>%
+    summarise(
+      stan = median(rel_idx),
+      stanLower = quantile(rel_idx, 0.025),
+      stanUpper = quantile(rel_idx, 0.975)
+    )
+  
+  indices <- indices %>%
+    left_join(index_stan,  by = 'level')
   
   return(indices)
   

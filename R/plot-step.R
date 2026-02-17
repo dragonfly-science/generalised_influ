@@ -102,6 +102,7 @@ plot_step2 <- function(step_df){
     # Current line (blue)
     geom_line(data = filter(df_all_steps, LineType == "Current"), 
               color = "royalblue", linewidth = 1) +
+    
     geom_text(data = distinct(df_all_steps, Model, FacetTarget), 
               aes(label = FacetTarget, x = -Inf, y = -Inf), # -Inf/-Inf is the bottom-left
               hjust = -0.1, vjust = -0.5,                   # Small nudge inward

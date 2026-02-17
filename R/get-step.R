@@ -27,15 +27,22 @@ get_step <- function(fit, pred_grid = NULL, predictor = NULL) {
     if  (is.null(predictor)) stop("Argument 'predictor' is missing. Please specify 1 for the first part or 2 for the hurdle part.")
     newFormula <- (fit$formula)[[predictor]]
     sptp_on <- fit$spatiotemporal[predictor]!="off"
+    
+  } else if(inherits(fit, 'brmsfit')){
+    
+    newFormula <- formula(fit)$formula
+    sptp_on <- FALSE
+    
   } else {
+    #GLM and survreg
     newFormula <- (fit$formula)
     sptp_on <- FALSE
+    
   }
   
   
   # extract terms from this formula
-  terms <- stats::terms(newFormula)
-  terms_labels <- attr(terms, "term.labels")
+  terms_labels <- get_terms(fit, predictor = predictor)
   
   # initiate effects list
   effects <- list()

@@ -140,3 +140,42 @@ gmean <- function(a) {
 inv_logit <- function(z) {
   1/(1+exp(-z))
 }
+
+#' Impute values for new data
+#' 
+#' @param z a vector.
+#' @return Mean for numeric variables and mode for categorical
+#' @export
+#' 
+mean_or_mode <- function(z) {
+  if(is.numeric(z)) mean(z) else factor(names(sort(-table(z)))[1])
+}
+
+
+#' extract terms from the model
+#' 
+#' 
+
+get_terms <- function(fit, predictor = NULL){
+  is_sdm <- inherits(fit, 'sdmTMB')
+  
+  if (is_sdm){
+    
+    if  (is.null(predictor)) stop("Argument 'predictor' is missing. Please specify 1 for the first part or 2 for the hurdle part.")
+    Formula <- formula(fit)[[predictor]]
+    
+  } else if(inherits(fit, 'brmsfit')){
+    
+    Formula <- formula(fit)$formula
+    
+    } else{
+    Formula <- formula(fit)
+    
+  }
+  
+  
+  # extract terms from this formula
+  terms <- stats::terms(Formula)
+  terms_labels <- attr(terms, "term.labels")
+  return(terms_labels)
+}
