@@ -57,7 +57,7 @@ get_step <- function(fit, pred_grid = NULL, predictor = NULL) {
       # Update both formula and model
       
       newFormula <- update.formula(newFormula,
-                                   formula(paste("~ 0 + ",
+                                   formula(paste("~",
                                                  paste(paste(terms_labels[1:min(termCount,length(terms_labels)) ],
                                                              collapse='+')))))
       

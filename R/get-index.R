@@ -258,14 +258,14 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
     
     
     
-  }else if('glm' %in% class(fit)){
-    # GLMs
-    
-    # Extract covariance matrix
-    V <- summary(fit)$cov.scaled
+  }else if(inherits(fit, c("glm", "survreg"))){
+    # GLMs and Survreg. 
     
     # Extract model coeffs
     cfs <- coefficients(fit)
+    
+    # Extract covariance matrix. Survreg has extra param Log(scale), we subset vcov matrix to the size fo coefficients only 
+    V <- vcov(fit)[1:length(cfs), 1:length(cfs)]
     
     # Create draws of model coeffs
     beta_draws <- mvtnorm::rmvnorm(1000,cfs,V)
@@ -284,12 +284,26 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
     # Predicted response for new data
     draws <- beta_draws %*% t(X)
     
-    # Bring to log-scale for binomila component
+    # Different process for binomial component
     if (!is.null(fit$family$family) && any(fit$family$family %in% c("bernoulli", "binomial"))){
-      draws <- log(inv_logit(draws))
+      
+      rows = c(1,which(substr(row.names(V),
+                              1,
+                              nchar(year))==year))
+      
+      resp_name <- names(model.frame(fit))[1]
+      int <- logit(aggregate(list(unstan=fit$model[[resp_name]]),
+                             list(level=fit$model[[year]]),
+                             mean)$unstan)[1]
+      cfs[1] <- int
+      
+      bin <- mvtnorm::rmvnorm(1000,cfs,V)[,rows]
+      bin <- cbind(inv_logit(bin[,1]),inv_logit(bin[,1] + bin[,2:length(yrs)]))
+      
+      draws <- log(bin)
     }
     
-    # Prepare df for index derivation
+    # Rearrange df for index derivation
     colnames(draws) <- yrs
     
     draws %<>%
@@ -340,7 +354,7 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
   }
   
   # This step is common to all models
-  # Do geometric mean transformation to draws, then summarise to fin medians and quantiles
+  # Do geometric mean transformation to draws, then summarise to find medians and quantiles
   
  
   
@@ -365,3 +379,47 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
   return(indices)
   
 }
+
+##################################################################################
+# Draft approach for binomial index where index is predicted from the model at modes for factors 18.02.2026
+##################################################################################
+
+# # GLMs
+# 
+# # Extract covariance matrix
+# V <- summary(fit)$cov.scaled
+# 
+# # Extract model coeffs
+# cfs <- coefficients(fit)
+# 
+# # Create draws of model coeffs
+# beta_draws <- mvtnorm::rmvnorm(1000,cfs,V)
+# 
+# # Force the levels in newdata to match the levels in raw_data
+# for (col_name in names(newdata)) {
+#   if (is.factor(raw_data[[col_name]])) {
+#     newdata[[col_name]] <- factor(newdata[[col_name]], 
+#                                   levels = levels(raw_data[[col_name]]))
+#   }
+# }
+# 
+# # Model matrix for new data
+# X <- model.matrix(delete.response(terms(fit)), data = newdata)
+# 
+# # Predicted response for new data
+# draws <- beta_draws %*% t(X)
+# 
+# # Bring to log-scale for binomial component
+# if (!is.null(fit$family$family) && any(fit$family$family %in% c("bernoulli", "binomial"))){
+#   draws <- log(inv_logit(draws))
+# }
+# 
+# # Prepare df for index derivation
+# colnames(draws) <- yrs
+# 
+# draws %<>%
+#   as_data_frame() %>%
+#   mutate(.iteration = row_number()) %>%
+#   pivot_longer(cols = -.iteration,
+#                names_to = 'level',
+#                values_to = '.value') 
