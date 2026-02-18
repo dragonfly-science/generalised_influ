@@ -28,14 +28,9 @@ get_step <- function(fit, pred_grid = NULL, predictor = NULL) {
     newFormula <- (fit$formula)[[predictor]]
     sptp_on <- fit$spatiotemporal[predictor]!="off"
     
-  } else if(inherits(fit, 'brmsfit')){
-    
-    newFormula <- formula(fit)$formula
-    sptp_on <- FALSE
-    
   } else {
-    #GLM and survreg
-    newFormula <- (fit$formula)
+    # brms, GLM and survreg
+    newFormula <- formula(fit)
     sptp_on <- FALSE
     
   }
@@ -65,20 +60,20 @@ get_step <- function(fit, pred_grid = NULL, predictor = NULL) {
       
       
       
-      # construct model call, but do not evaluate yet
-      mod_call <- update(fit, formula = newFormula, evaluate = FALSE)
+      # Prepare arguments for the re-fit
+      fit_args <- list(object = fit, formula. = newFormula)
       
-      # conditionally add spatiotemoral terms to model call
+      # Conditionally add spatiotemoral terms to model call
       if(is_sdm){
         # Turn spatial and/or spatio-temporal component on
         # spatial on only if this iteration is after all terms were added
-        mod_call$spatial <- ifelse(termCount<=length(terms_labels), 'off', fit$spatial[predictor])
+        fit_args$spatial <- ifelse(termCount<=length(terms_labels), 'off', fit$spatial[predictor])
         # spatiotemporal 'on' only if this is the last iteration AND original fit has it 'on'
-        mod_call$spatiotemporal <- ifelse(termCount!=length(terms_labels)+2, 'off', fit$spatiotemporal[predictor])
+        fit_args$spatiotemporal <- ifelse(termCount!=length(terms_labels)+2, 'off', fit$spatiotemporal[predictor])
       }
       
       # refit the model
-      fit_reduced <- eval(mod_call)
+      fit_reduced <- do.call(update, fit_args)
       
       # Get index for this model
       idx_reduced <- get_index (fit_reduced,  pred_grid = pred_grid, predictor = predictor)

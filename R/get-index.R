@@ -189,7 +189,7 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
   
   if (is.brmsfit(fit)) {
     
-    draws <- fitted(object = fit, newdata = newdata, probs = c(probs[1], 0.5, probs[2]), re_formula = NA, scale = 'linear', summary = F)
+    draws <- fitted(object = fit, newdata = newdata, probs = c(probs[1], 0.5, probs[2]), re_formula = NA, scale = "response", summary = F)
     
     colnames(draws) <- yrs
     
@@ -282,7 +282,7 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
     X <- model.matrix(delete.response(terms(fit)), data = newdata)
     
     # Predicted response for new data
-    draws <- beta_draws %*% t(X)
+    draws <- exp(beta_draws %*% t(X))
     
     # Different process for binomial component
     if (!is.null(fit$family$family) && any(fit$family$family %in% c("bernoulli", "binomial"))){
@@ -300,7 +300,7 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
       bin <- mvtnorm::rmvnorm(1000,cfs,V)[,rows]
       bin <- cbind(inv_logit(bin[,1]),inv_logit(bin[,1] + bin[,2:length(yrs)]))
       
-      draws <- log(bin)
+      draws <- bin
     }
     
     # Rearrange df for index derivation
@@ -316,54 +316,50 @@ get_index <- function(fit, year = NULL, probs = c(0.025, 0.975), rescale = 1, do
   }else if(is_sdm) {
     # Spatio-temporal models 
     
-    if (is.null(predictor)) {
-      # Combined index
+    # if (is.null(predictor)) {
+    #   # Combined index
+    #   
+    #   predict_both <- predict(spatiotemporal, newdata = pred_grid, return_tmb_object = TRUE)
+    #   index_sdm <- sdmTMB::get_index(predict_both,  bias_correct = TRUE) %>%
+    #     rename(level = !!sym(year)) %>%
+    #     mutate(stan = exp(log_est - mean (log_est)),
+    #            stanLower = exp(log_est - mean (log_est) - 1.96*se),
+    #            stanUpper = exp(log_est - mean (log_est) + 1.96*se)
+    #     )%>%
+    #     select(level, stan, stanLower, stanUpper)
+    #   
+    #   
+    # } else {
+    #   # Non combined index
+    
+    if (predictor == 1){
+      # Binomial Index
       
-      predict_both <- predict(spatiotemporal, newdata = pred_grid, return_tmb_object = TRUE)
-      index_sdm <- sdmTMB::get_index(predict_both,  bias_correct = TRUE) %>%
-        rename(level = !!sym(year)) %>%
-        mutate(stan = exp(log_est - mean (log_est)),
-               stanLower = exp(log_est - mean (log_est) - 1.96*se),
-               stanUpper = exp(log_est - mean (log_est) + 1.96*se)
-        )%>%
-        select(level, stan, stanLower, stanUpper)
-      
+      predict_sim <- predict(fit, newdata = pred_grid, return_tmb_object = TRUE, nsim = 1000, model = 1, type = "response")
       
     } else {
-      # Non combined index
+      # Combined index or Positive Index
       
-      if (predictor == 1){
-        # Binomial Index
-        
-        predict_hurdle <- predict(fit, newdata = pred_grid, return_tmb_object = TRUE, nsim = 1000, model = 1, type = "response")
-        
-        
-      } else if (predictor == 2){
-        # Positive Index
-        
-        predict_hurdle <- predict(fit, newdata = pred_grid, return_tmb_object = TRUE, nsim = 1000, model = 2)
-        
-      }
-      
-      # generate draws of indices
-      draws <- sdmTMB::get_index_sims(predict_hurdle, return_sims = T) %>% # need to think about the area here
-        rename(level = !!sym(year)) 
+      model <- if (length(predictor) > 0) 2 else NA
+      predict_sim <- predict(fit, newdata = pred_grid, return_tmb_object = TRUE, nsim = 1000, model = model)
       
     }
+    
+    # generate draws of indices
+    draws <- sdmTMB::get_index_sims(predict_sim, return_sims = T) %>% # need to think about the area here
+      rename(level = !!sym(year)) 
     
   }
   
   # This step is common to all models
   # Do geometric mean transformation to draws, then summarise to find medians and quantiles
   
- 
-  
   index_stan <- draws %>%
     
     group_by(.iteration) %>%
     mutate(
       level = factor(level),
-      rel_idx = exp(.value - mean(.value))
+      rel_idx = exp(log(.value) - mean(log(.value)))
     ) %>%
     ungroup() %>%
     group_by(level) %>%

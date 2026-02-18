@@ -75,7 +75,7 @@ plot_step2 <- function(step_df){
   
   df_long <- step_df %>%
     select(Year = level, all_of(model_names)) %>%
-    pivot_longer(-Year, names_to = "Model", values_to = "Stan") %>%
+    pivot_longer(-Year, names_to = "Model", values_to = "Index") %>%
     mutate(Model = factor(Model, levels = model_names)) # Keeps them in order
   
   # Generate the background data for every facet
@@ -92,7 +92,7 @@ plot_step2 <- function(step_df){
         )
       )
   })
-  p <- ggplot(df_all_steps, aes(x = Year, y = Stan, group = Model)) +
+  p <- ggplot(df_all_steps, aes(x = Year, y = Index, group = Model)) +
     # Historical lines (grey)
     geom_line(data = filter(df_all_steps, LineType == "Historical"), 
               color = "grey85") +
@@ -102,6 +102,9 @@ plot_step2 <- function(step_df){
     # Current line (blue)
     geom_line(data = filter(df_all_steps, LineType == "Current"), 
               color = "royalblue", linewidth = 1) +
+    
+    geom_point(data = filter(df_all_steps, LineType == "Current"), 
+              color = "royalblue") +
     
     geom_text(data = distinct(df_all_steps, Model, FacetTarget), 
               aes(label = FacetTarget, x = -Inf, y = -Inf), # -Inf/-Inf is the bottom-left
