@@ -71,7 +71,12 @@ plot_step <- function(fits, year = NULL, fill = "purple",
 #' 
 #' 
 plot_step2 <- function(step_df){
-  model_names <- names(step_df)[7:ncol(step_df)]
+  
+  # Identify position of first model
+  
+  start_idx <- match("stanUpper", names(step_df)) +1
+  
+  model_names <- names(step_df)[start_idx:ncol(step_df)]
   
   df_long <- step_df %>%
     select(Year = level, all_of(model_names)) %>%
@@ -101,15 +106,24 @@ plot_step2 <- function(step_df){
               linetype = "dashed", color = "black") +
     # Current line (blue)
     geom_line(data = filter(df_all_steps, LineType == "Current"), 
-              color = "royalblue", linewidth = 1) +
-    
-    geom_point(data = filter(df_all_steps, LineType == "Current"), 
               color = "royalblue") +
     
-    geom_text(data = distinct(df_all_steps, Model, FacetTarget), 
-              aes(label = FacetTarget, x = -Inf, y = -Inf), # -Inf/-Inf is the bottom-left
-              hjust = -0.1, vjust = -0.5,                   # Small nudge inward
-              size = 3.5 ) +
+    geom_point(data = filter(df_all_steps, LineType == "Current"), 
+               color = "royalblue") +
+    
+    geom_label(data = df_all_steps %>%
+                 group_by(FacetTarget) %>%
+                 summarize(Model = last(Model)), 
+               aes(label = FacetTarget, x = -Inf, y = -Inf),
+               # Fixed alignment settings:
+               hjust = 0,             
+               vjust = 0,             
+               label.padding = unit(1, "lines"), 
+               label.size = NA,       
+               fill = NA,            
+               size = 3.5) +
+    labs(x = "fishing year", y = "Index") +
+    scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
     facet_wrap(~FacetTarget, ncol = 1) +
     theme_cowplot() +
     theme(

@@ -100,8 +100,8 @@ get_unstandardised <- function(fit, year = NULL, rescale = 1, predictor = NULL) 
     indices <- aggregate(list(unstan_pos=log_observed),                        # derive mean by year
                          list(level=year_vec),
                          mean) %>%
-      mutate(unstan = exp(unstan_pos-mean(unstan_pos)))               # derive ratio of each index to its geo mean (relative index)
-    
+      mutate(unstan = exp(unstan_pos-mean(unstan_pos)))  %>%             # derive ratio of each index to its geo mean (relative index)
+      select(-unstan_pos)
     # Darcy's code
     # unstd <- data.frame(y = fit$data[,1], Year = fit$data[,year]) %>%
     #   group_by(Year) %>%

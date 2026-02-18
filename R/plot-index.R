@@ -17,52 +17,55 @@
 #' 
 plot_index <- function(fit, 
                        year = NULL, 
-                       fill = "purple", 
+                       fill = "black", 
                        probs = c(0.25, 0.75),
                        rescale = 1,
+                       predictor = NULL,
                        show_unstandardised = TRUE) {
   
-  if (!is.brmsfit(fit)) stop("fit is not an object of class brmsfit.")
+  if  (!any(class(fit) %in% c("sdmTMB", "glm", "brmsfit", "survreg"))) stop("This model class is not supported.")
   
   if (is.null(year)) {
     year <- get_first_term(fit = fit)
   }
   
-  # Get the standardised series
-  fout <- get_index(fit = fit, year = year, probs = probs, rescale = rescale) %>%
-    mutate(model = "Standardised")
+  index <- get_index(fit = fit, year = year, probs = probs, rescale = rescale, predictor = predictor) 
   
-  # Get the unstandardised series
-  unstd <- get_unstandarsied(fit = fit, year = year, rescale = rescale) %>%
-    mutate(model = "Unstandardised")
-  
-  df <- bind_rows(fout, unstd)
-  
-  df$model <- factor(df$model, levels = c("Unstandardised", "Standardised"))
+  index_long <- index %>%
+    rename(Standardised = stan, Unstandardised = unstan) %>%
+    pivot_longer(
+      cols = c(Standardised, Unstandardised), 
+      names_to = "index_type", 
+      values_to = "Index"
+    )
   
   if (!show_unstandardised) {
-    df <- df %>% filter(.data$model != "Unstandardised")
-    scale_col <- fill
-    scale_lin <- "solid"
-  } else {
-    scale_col <- c("grey", fill)
-    scale_lin <- c("dashed", "solid")
+    index_long <- index_long %>% filter(index_type != "Unstandardised")
   }
   
-  p <- ggplot(data = df, aes(x = .data$Year, y = .data$Median, group = .data$model)) +
-    # geom_ribbon(aes(ymin = .data$Qlower, ymax = .data$Qupper, fill = .data$model), alpha = 0.5, colour = NA) +
-    geom_ribbon(data = df %>% filter(.data$model != "Unstandardised"), aes(ymin = .data$Qlower, ymax = .data$Qupper), alpha = 0.5, colour = NA, fill = fill) +
-    geom_line(aes(colour = .data$model, linetype = .data$model)) +
-    geom_point(aes(colour = .data$model)) +
-    labs(x = NULL, y = "Index") +
-    # scale_fill_manual(values = c("grey", fill)) + scale_fill_manual(values = fill) +
-    scale_colour_manual(values = scale_col) +
-    scale_linetype_manual(values = scale_lin) +
+ p <-  ggplot(index_long, aes(x = level, y = Index, group = index_type)) +
+    geom_ribbon(aes(ymin = stanLower, ymax = stanUpper), 
+                data = filter(index_long, index_type == "Standardised"),
+                fill = fill, color = NA, alpha = 0.1) +
+    geom_line(aes(linetype = index_type, colour = index_type)) +
+    geom_point(aes(shape = index_type, colour = index_type), size = 3) +
+    scale_shape_manual(values = c("Standardised" = 16, "Unstandardised" = 1))+
+    scale_colour_manual(values = c( fill, "grey40")) +
     scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
-    theme_bw() +
-    theme(legend.position = "top", axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_blank(), legend.key.width = unit(2, "cm")) +
-    guides(color = guide_legend(override.aes = list(fill = NA)))
-
+    labs(x = "Fishing year", y = "Index") +
+    theme_cowplot() +
+    theme(
+      legend.direction = "horizontal",
+      legend.box = "horizontal",
+      legend.position = c(0.05, 0.95), 
+      legend.justification = c(0, 1), 
+      legend.title = element_blank(),
+      legend.key.width = unit(2, "cm"),
+      legend.background = element_rect(fill = "white", color = NA), 
+      panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.8),
+      
+    )
+  
   return(p)
 }
 
