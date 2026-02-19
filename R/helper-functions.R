@@ -179,3 +179,25 @@ get_terms <- function(fit, predictor = NULL){
   terms_labels <- attr(terms, "term.labels")
   return(terms_labels)
 }
+
+
+get_preds <- function(fit){
+  preds = predict(fit,
+                  type='terms',
+                  se.fit=T)
+  
+  fit = as.data.frame(preds$fit)
+  
+  se.fit = as.data.frame(preds$se.fit)
+  
+  preds = cbind(fit,se.fit)
+  
+  names(preds) = c(paste('fit',
+                         names(fit),
+                         sep='.'),
+                   paste('se.fit',
+                         names(fit),
+                         sep='.'))
+  
+  preds
+}

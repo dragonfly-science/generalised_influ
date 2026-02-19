@@ -61,7 +61,7 @@ get_influ2 <- function(fit,
     s_coefs <- coefs %>% filter(!str_detect(.data$variable, "bs_|sds_"))
     coefs <- coefs %>% filter(str_detect(.data$variable, "bs_"))
   }
-
+  
   # Do the matrix multiplication
   n_iterations <- max(coefs$iteration)
   Xbeta <- matrix(NA, nrow = n_iterations, ncol = nrow(data))
@@ -164,3 +164,72 @@ get_influ <- function(fit, group = c("fishing_year", "area"), hurdle = FALSE) {
   
   return(influ_delta)
 }
+
+#' Get the influence metric for GLM/survreg
+#' 
+#' @param fit a model fit
+#' @return a \code{data.frame}
+#' 
+#' @import dplyr
+#' @export
+#' 
+get_influ_glm <- function(fit, predictor = NULL) {
+  
+  if (is.null(year)) {
+    year <- get_first_term(fit = fit)
+  }
+  
+  if(inherits(fit, c("glm", "survreg"))){
+    
+    # Derive contribution of each term to response
+    preds <- get_preds(fit)
+    
+    # Add raw data to it
+    preds <- as.data.frame(bind_cols(fit$model,preds))
+    
+    # Create empty influences df with rows for each level of fyear
+    influences <- data.frame(level=levels(fit$model[[year]]))
+    
+    overall = c(NA,NA) # NAs for null model and for focus term
+    
+    trend = c(NA,NA)
+    
+    # extract terms from this formula
+    terms_labels <- get_terms(fit, predictor = predictor)
+    
+    for(term in terms_labels){
+      if(term!=year){
+        
+        # This is formula 3b from Bentley et al. 2012
+        infl <- aggregate(
+          list(value = preds[,paste('fit',term, sep='.')]),
+          list(level = preds[[year]]),
+          mean
+        )
+        
+        
+        # Mean absolute magnitude of the term's impact, converted to annual % change
+        # TO DO: come back to this, this is currently not being picked up
+        overall <- c(overall,
+                     with(infl,
+                          exp(mean(abs(value)))-1))
+        
+        # Annual growth % of this term's contribution
+        trend <- c(trend,
+                   with(infl,
+                        exp(cov(1:length(value),
+                                value)/var(1:length(value)))-1))
+        
+        names(infl) <- c('level',
+                         term)
+        influences <- merge(influences,
+                            infl,
+                            all.x=T,
+                            by='level')
+      }
+    }
+  }
+  return(influences)
+}
+    
+    
