@@ -309,3 +309,36 @@ plot_bayesian_cdi2 <- function(fit,
   
   p1 + p2 + p3 + p4 + plot_layout(nrow = 2, ncol = 2, heights = c(1, 2), widths = c(2, 1))
 }
+
+
+################################################################################################
+# Oxana;s draft
+################################################################################################
+# Draft plot 3 for CDI plot
+
+for(term in terms_labels[-1]){
+  influences_long <- influences %>%
+    dplyr::select( level, all_of(term) ) %>% 
+    pivot_longer(-level, names_to = "Term", values_to = "Influence") %>%
+    mutate(Influence = exp(Influence))
+  
+  
+  # 3. Influence
+  
+  p <- ggplot(influences_long, aes(x = Influence, y = level)) +
+    geom_hline(aes(yintercept = level), color = "grey", linewidth = 0.5) +
+    geom_vline(xintercept = 1, linetype = "dashed") +
+    geom_path(group = 1) +                    # Connects the dots in the order of the data
+    geom_point(size = 5.4, pch = 16) +
+    scale_x_continuous(labels = scales::label_number(accuracy = 0.01)) +
+    scale_y_discrete( position = "right") +
+    labs(x = "Influence", y = NULL)+
+    theme_cowplot() +
+    theme(
+      axis.text.y = element_text(angle = 90, vjust = 0.5, hjust = 0.5),
+      panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.8)
+    )
+  
+  
+  print(p)
+}
