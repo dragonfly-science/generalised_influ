@@ -59,7 +59,7 @@ plot_bayesian_cdi <- function(fit,
   } else {
     # this would plot the marginal/conditional effect, but if it is a hurdle model it ignores the hurdle bit
     coefs <- get_marginal(fit = fit, var = xfocus)# %>%
-      # mutate(value = log(value))
+    # mutate(value = log(value))
     # library(marginaleffects)
     # pred <- predictions(model = fit)
     # coefs <- get_coefs_raw(fit = fit, var = xfocus)
@@ -83,7 +83,7 @@ plot_bayesian_cdi <- function(fit,
   } else {
     data <- fit$data
   }
-
+  
   # Sort the coefficients if required
   sort_order <- NULL
   if (sort_coefs) {
@@ -154,8 +154,8 @@ plot_bayesian_cdi <- function(fit,
       geom_violin(colour = colour, fill = colour, alpha = 0.5, draw_quantiles = 0.5, scale = "width") +
       geom_hline(yintercept = 0, linetype = "dashed") +
       scale_x_discrete(position = "top")# +
-      # scale_x_discrete(position = "top", breaks = midpoints, minor_breaks = NULL, expand = expansion(mult = 0.05)) +
-      # coord_cartesian(xlim = c(midpoints[1], midpoints[length(midpoints)]))
+    # scale_x_discrete(position = "top", breaks = midpoints, minor_breaks = NULL, expand = expansion(mult = 0.05)) +
+    # coord_cartesian(xlim = c(midpoints[1], midpoints[length(midpoints)]))
   }
   
   # The influence plot (bottom-right)
@@ -203,11 +203,11 @@ plot_bayesian_cdi <- function(fit,
 #' 
 plot_bayesian_cdi2 <- function(fit,
                                xfocus = "area", yfocus = "fishing_year",
-                              hurdle = FALSE,
-                              xlab = "Month", 
-                              ylab = "Fishing year", 
-                              colour = "purple") {
-
+                               hurdle = FALSE,
+                               xlab = "Month", 
+                               ylab = "Fishing year", 
+                               colour = "purple") {
+  
   # Posterior samples of coefficients
   coefs <- get_coefs(fit = fit, var = xfocus, normalise = TRUE, hurdle = hurdle)
   n_iterations <- max(coefs$iteration)
@@ -228,11 +228,11 @@ plot_bayesian_cdi2 <- function(fit,
     # breaks <- unique(quantile(data[,xfocus], probs = seq(0, 1, length.out = 15)))
     # data[,xfocus] <- cut(data[,xfocus], breaks = breaks, include.lowest = TRUE)
     data[,xfocus] <- sapply(data[,xfocus], get_midpoint)
-
+    
     z <- poly(fit$data[,xfocus], 3)
     x_new <- data.frame(id = 1:length(unique(data[,xfocus])), variable = sort(unique(data[,xfocus])))
     x_poly <- poly(x_new$variable, 3, coefs = attr(z, "coefs"))
-
+    
     # Do the matrix multiplication
     Xbeta <- matrix(NA, nrow = n_iterations, ncol = nrow(x_poly))
     for (i in 1:n_iterations) {
@@ -243,7 +243,7 @@ plot_bayesian_cdi2 <- function(fit,
       select(-id)
   } else if (length(unique(coefs$variable)) == 1) {
     data <- fit$data# %>%
-      # select(xfocus)
+    # select(xfocus)
     dmin <- min(data[,xfocus])
     dmax <- max(data[,xfocus])
     data[,xfocus] <- cut(data[,xfocus], breaks = seq(dmin, dmax, length.out = 20), include.lowest = TRUE)
@@ -270,14 +270,14 @@ plot_bayesian_cdi2 <- function(fit,
   } else {
     ylab1 <- "Relative coefficient"
   }
-
+  
   # Extract the legend on its own
   g2 <- function(a.gplot) {
     if (!is.gtable(a.gplot))
       a.gplot <- ggplotGrob(a.gplot)
     gtable_filter(a.gplot, 'guide-box', fixed = TRUE)
   }
-
+  
   # Build the plot
   sp <- 0.05
   
@@ -295,7 +295,7 @@ plot_bayesian_cdi2 <- function(fit,
   p2 <- g2(p3a)
   p3 <- p3a +
     theme(legend.position = "none", plot.margin = margin(t = sp, r = sp, unit = "cm"), axis.text.x = element_text(angle = 45, hjust = 1))
-
+  
   # The influence plot (bottom-right)
   p4 <- ggplot(data = influ, aes_string(x = as.character(yfocus))) +
     geom_hline(yintercept = 1, linetype = "dashed") +
@@ -314,31 +314,219 @@ plot_bayesian_cdi2 <- function(fit,
 ################################################################################################
 # Oxana;s draft
 ################################################################################################
-# Draft plot 3 for CDI plot
 
-for(term in terms_labels[-1]){
-  influences_long <- influences %>%
-    dplyr::select( level, all_of(term) ) %>% 
-    pivot_longer(-level, names_to = "Term", values_to = "Influence") %>%
-    mutate(Influence = exp(Influence))
+#' Plot Coefficient Distribution and Influence (CDI)
+#'
+#' @description 
+#' Generates a multi-pane layout visualising the coefficients, data distribution, 
+#' and relative influence of a model predictor. 
+#' 
+#' @param fit A fitted model object (e.g., from `glm` or `gam`).
+#' @param year Character string. The name of the temporal column (e.g., "fyear") 
+#'   to be used as the focus variable on the y-axis of the distribution plot.
+#' @param predictor 
+#
+#' 
+#' @import ggplot2
+#' @import dplyr
+#' @import patchwork
+#' @importFrom stats as.formula coef
+#' 
+#' @export
+
+plot_cdi <- function(fit, year = NULL, predictor = NULL){
   
+  if (is.null(year)) {
+    year <- get_first_term(fit = fit)
+  }
   
-  # 3. Influence
+  # Derive contribution of each term to response
+  preds <- get_preds(fit)
   
-  p <- ggplot(influences_long, aes(x = Influence, y = level)) +
-    geom_hline(aes(yintercept = level), color = "grey", linewidth = 0.5) +
-    geom_vline(xintercept = 1, linetype = "dashed") +
-    geom_path(group = 1) +                    # Connects the dots in the order of the data
-    geom_point(size = 5.4, pch = 16) +
-    scale_x_continuous(labels = scales::label_number(accuracy = 0.01)) +
-    scale_y_discrete( position = "right") +
-    labs(x = "Influence", y = NULL)+
-    theme_cowplot() +
-    theme(
-      axis.text.y = element_text(angle = 90, vjust = 0.5, hjust = 0.5),
-      panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.8)
-    )
+  # Add raw data to it
+  preds <- as.data.frame(bind_cols(fit$data,preds))
   
+  # extract terms from this formula
+  terms_labels <- get_terms(fit, predictor = predictor)
   
-  print(p)
+  result <- lapply(setdiff(terms_labels, year), function(term_label) {
+    
+    # Define col names for fitted terms and ses
+    fit_colname <- sym(paste0('fit.', term_label))
+    se_colname  <- sym(paste0('se.fit.', term_label))
+    
+    
+    # Define levels of term on which coefficient and distribution plots will be based
+    # This is done by search for each column name in the data as a whole word in the
+    # each term. This allows for matching of terms like 'poly(log(var),3)' with 'var'
+    
+    term_stripped <- all.vars(as.formula(paste("~", term_label))) 
+    raw_values <- preds[[term_stripped]]
+    
+    # Numeric terms are cut into factors 
+    if(is.numeric(raw_values)) {
+      breaks <- pretty(raw_values, 30)
+      step   <- diff(breaks[1:2])
+      
+      levels <- cut(raw_values, 
+                    breaks = c(breaks, max(breaks) + step), 
+                    labels = breaks + (step / 2), 
+                    include.lowest = TRUE)
+    } else {
+      levels <- raw_values
+    }
+    
+    
+    coeffs <- preds %>%
+      group_by(term = !!levels) %>%  
+      summarise(
+        coef = mean(!!fit_colname),
+        se   = mean(!!se_colname)
+      ) %>%
+      mutate (
+        lower = coef - (1.96 * se),
+        upper = coef + (1.96 * se)
+      )
+    
+    # Reorder levels according to coefficients for factors
+    if(is.factor(raw_values)) {
+      
+      coeffs <- coeffs %>%
+        arrange(coef) 
+      
+      coeffs$term <- factor(coeffs$term, levels = coeffs$term, ordered = TRUE)
+      
+      levels <- factor(levels, levels = coeffs$term, ordered = TRUE)
+      
+    }
+    
+    # 1. Coefficients  Plot
+    #_____________________________________________________________________________
+    
+    # Create plot theme depending on the term:
+    
+    if ((grepl('month|area|cluster', term_label, ignore.case=TRUE)) | (length(levels(levels)) > 8)) {
+      
+      # Vertical labels and tighter margins
+      dynamic_theme <- theme(
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+        axis.title.x = element_text(margin = margin(t = 15)) 
+      )
+      
+    } else {
+      
+      # Horizontal labels
+      dynamic_theme <- theme(
+        axis.text.x = element_text(angle = 0),
+        axis.title.x = element_text(margin = margin(t = 10))
+      )
+    }
+    
+    # No x-labels for vessel_key
+    x_labels <- if(grepl('vessel_key', term_label, ignore.case=TRUE)){
+      NULL
+    }  else if(length(levels(levels)) > 15) {
+      # Downsample labels for continuous vars otherwise they overlap, the logic is to keep every n-th label where n = original no of levels/10
+      function(x) {
+        x[seq_along(x) %% max(1, round(length(x) / 10)) != 1] <- ""
+        return(x)
+      }
+    } else waiver()
+    
+    
+    p1 <- ggplot(coeffs, aes(x = term, y = exp(coef))) +
+      geom_point(shape = 2, size = 3) +
+      geom_errorbar(aes(ymin = exp(lower), ymax = exp(upper)), width = 0) +
+      # Bottom Cap
+      geom_segment(aes(x = as.numeric(term) - 0.05, xend = as.numeric(term) + 0.05, 
+                       y = exp(lower), yend = exp(lower))) +
+      # Top Cap
+      geom_segment(aes(x = as.numeric(term) - 0.05, xend = as.numeric(term) + 0.05, 
+                       y = exp(upper), yend = exp(upper))) +
+      geom_hline(yintercept = 1, linetype = "dashed")+
+      scale_y_log10() +
+      scale_x_discrete(labels = x_labels, position = 'top') +
+      theme_cowplot() +
+      background_grid(major = "xy", minor = "none") +
+      labs(y = 'Coefficient', x = NULL) +
+      dynamic_theme +
+      theme(
+        panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.8)
+      )
+    
+    # 2. Distribution Plot
+    #_____________________________________________________________________________
+    
+    distrs <- preds %>%
+      group_by(focus = .[[year]], term = levels)  %>%
+      summarise(count = n(), .groups = "drop_last") %>%
+      
+      mutate(
+        total = sum(count),
+        prop  = count / total
+      ) %>%
+      
+      ungroup()
+    
+    p2 <- ggplot(distrs, aes(x = term, y = focus, size = sqrt(prop) * 20)) +
+      geom_point(pch = 1) +
+      scale_size_identity() +
+      scale_x_discrete(labels = x_labels) +
+      theme_cowplot() +
+      background_grid(major = "xy", minor = "none") +
+      labs(x = term_stripped, y = year) +
+      dynamic_theme 
+    
+    
+    # 3. Influence
+    #______________________________________________________________________________
+    
+    # This is formula 3b from Bentley et al. 2012
+    infl <- preds %>%
+      group_by(level = !!sym(year)) %>%
+      summarise(Influence = mean(!!sym(fit_colname))) 
+    
+    # Mean absolute magnitude of the term's impact, converted to annual % change
+    overall <- exp(mean(abs(infl$Influence))) - 1
+    
+    # Annual growth % of this term's contribution
+    n <- nrow(infl)
+    trend <- exp(cov(1:n, infl$Influence) / var(1:n)) - 1
+    
+    infl %<>% 
+      mutate(Influence = exp(Influence),
+             Term = term_label, 
+             overall = overall, 
+             trend = trend) %>%
+      relocate(Term, .after = level)
+    
+    
+    p3 <- ggplot(infl, aes(x = Influence, y = level)) +
+      geom_hline(aes(yintercept = level), color = "grey", linewidth = 0.5) +
+      geom_vline(xintercept = 1, linetype = "dashed") +
+      geom_path(group = 1) +                    # Connects the dots in the order of the data
+      geom_point(size = 5.4, pch = 16) +
+      scale_x_continuous(labels = scales::label_number(accuracy = 0.01)) +
+      scale_y_discrete( position = "right") +
+      labs(x = "Influence", y = NULL)+
+      theme_cowplot() +
+      theme(
+        panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.8)
+      )
+    
+    
+    pv <- ggplot() + theme_void()
+    combined_plot <- p1 + pv + p2 + p3 + plot_layout(nrow = 2, ncol = 2, heights = c(1, 2), widths = c(2, 1)) &
+      theme(
+        axis.title = element_text(size = 14), 
+        axis.text = element_text(size = 14),  
+        plot.margin = margin(0, 0, 0, 0)  
+      )
+    
+    print(combined_plot)
+    
+    
+  })
+  
+  return (result)
 }

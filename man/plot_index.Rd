@@ -7,9 +7,10 @@
 plot_index(
   fit,
   year = NULL,
-  fill = "purple",
+  fill = "black",
   probs = c(0.25, 0.75),
   rescale = 1,
+  predictor = NULL,
   show_unstandardised = TRUE
 )
 }

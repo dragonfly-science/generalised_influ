@@ -7,7 +7,7 @@
 plot_step2(step_df)
 }
 \arguments{
-\item{step_df}{a list of model fits in the order that you want to compare them}
+\item{step_df}{dataframe generated weith get_step() function}
 }
 \description{
 This requires that all steps be run using brms and then provided as a list of model fits.
