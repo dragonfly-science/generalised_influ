@@ -134,7 +134,8 @@ attr(diag_metrics, "predictors") <- all.vars(delete.response(terms(fit)))
     integerResponse = DHARMa_obj$integerResponse,
     diag_metrics = diag_metrics ,
     predictors = all.vars(delete.response(terms(fit))),
-    new_factor_levels = if (exists("new_factor_levels")) new_factor_levels else NULL
+    new_factor_levels = if (exists("new_factor_levels")) new_factor_levels else NULL,
+    fittedModel = fit
   )
 
   class(out) <- "DHARMa"
@@ -550,7 +551,12 @@ results_list <- lapply(time_periods, function(period) {
   # Inject the valid grid IDs into their exact original row positions
   full_length_group[data_this_period$orig_row_id] <- data_this_period$grid_id
 
-  dharma_recalculated <- recalculateResiduals(diag_metrics, sel = data_this_period$orig_row_id,   
+  # Prepare filter to select only the rows for this time period
+
+  sel <- rep(FALSE, length(diag_metrics$scaledResiduals))
+  sel[data_this_period$orig_row_id] <- TRUE
+
+  dharma_recalculated <- recalculateResiduals(diag_metrics, sel = sel,   
     group = full_length_group)
   
     
