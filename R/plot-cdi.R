@@ -1141,9 +1141,9 @@ cdi_plot_with_indicators <- function(preds_list, compare_preds_list = NULL) {
         dist_below <- pmax(min(comp_infl$Influence) - infl$Influence, 0)
         dist_toRange <- max(dist_above + dist_below)
         indicators$outofRange <- case_when(
-          dist_toRange <= 0.05 ~ '✔',
-          dist_toRange > 0.1 ~ '!',
-          dist_toRange <= 0.1 ~ '?'
+          dist_toRange <= 0.05 ~ 'GREEN',
+          dist_toRange > 0.1 ~ 'RED',
+          dist_toRange <= 0.1 ~ 'AMBER'
         )
       }
 
