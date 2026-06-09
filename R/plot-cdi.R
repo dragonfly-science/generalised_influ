@@ -916,9 +916,9 @@ cdi_plot_with_indicators <- function(preds_list, compare_preds_list = NULL) {
 
         indicators <- data.frame(
           coeffsDiffer = case_when(
-            any(coeffsDiffer > 20) ~ '!',
-            any(coeffsDiffer > 10) ~ '?',
-            TRUE ~ '✔'
+            any(coeffsDiffer > 20) ~ 'RED',
+            any(coeffsDiffer > 10) ~ 'AMBER',
+            TRUE ~ 'GREEN'
           )
         )
       }

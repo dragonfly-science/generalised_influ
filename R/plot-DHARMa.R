@@ -408,9 +408,9 @@ boxplot_DHARMares <- function(diag_metrics) {
         meanKS_old   <- mean(out$uniformity$KSstat[!is_new])
         pct_increase <- (meanKS_new - meanKS_old) / meanKS_old 
         p@meta$indicatorKS  <- case_when(
-          pct_increase <= 0.01 ~ '✔',
-          pct_increase > 0.1 ~ '!',
-          pct_increase <= 0.2 ~ '?'
+          pct_increase <= 0.01 ~ 'GREEN',
+          pct_increase > 0.1 ~ 'RED',
+          pct_increase <= 0.2 ~ 'AMBER'
         )
       }
       return(p)
