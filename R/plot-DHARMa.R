@@ -351,7 +351,8 @@ boxplot_DHARMares <- function(diag_metrics) {
 
       # Create plotting dataframe
       plot_df <- data.frame(
-        residuals = qnorm(diag_metrics_df$scaledResiduals),
+        # residuals = qnorm(diag_metrics_df$scaledResiduals),
+        residuals = (diag_metrics_df$scaledResiduals),
         predictor = pred_vec
       ) %>%
         add_count(predictor, name = "n_obs") %>%
@@ -388,7 +389,7 @@ boxplot_DHARMares <- function(diag_metrics) {
         aes(x = predictor, y = residuals, fill = predictor, alpha = n_obs)
       ) +
         geom_boxplot(outlier.shape = NA) +
-        geom_hline(yintercept = c(-1.96, 0, 1.96), linetype = "dashed") +
+        geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed") +
         scale_fill_manual(values = box_colors) +
         guides(fill = "none", alpha = "none", linetype = 'none', linewidth = 'none') +
         labs(x = term_label, y = "DHARMa Residuals") +
