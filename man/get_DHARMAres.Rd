@@ -4,10 +4,12 @@
 \alias{get_DHARMAres}
 \title{Plot DHARMa Residuals for GLM2 and Survreg}
 \usage{
-get_DHARMAres(fit)
+get_DHARMAres(fit, compare_fit = NULL)
 }
 \arguments{
 \item{fit}{A fitted model object (of class glm, glm2, or survreg).}
+
+\item{compare_fit}{A fitted model object if model needs to be compared with a previous model}
 }
 \value{
 A ggplot object.

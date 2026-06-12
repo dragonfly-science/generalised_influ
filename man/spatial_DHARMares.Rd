@@ -7,9 +7,12 @@
 spatial_DHARMares(
   diag_metrics,
   coastline = NULL,
-  time_periods = "all",
+  statareas = NULL,
+  statarea_lab = NULL,
+  plot_time_periods = "all",
   grid_size = 10,
-  thresh = 3
+  thresh = 3,
+  sea_only = FALSE
 )
 }
 \arguments{
@@ -19,7 +22,7 @@ dataframe `$diag_metrics` with spatial coordinates `lon`, `lat` and time identif
 \item{coastline}{An \code{sf} object representing the land/coastline to be masked over the plot. 
 Defaults to \code{NULL} (no coastline plotted).}
 
-\item{time_periods}{A vector, list of vectors, or the string \code{"all"}. Defines the time 
+\item{plot_time_periods}{A vector, list of vectors, or the string \code{"all"}. Defines the time 
 blocks to iterate over. If \code{"all"} (default), iterates through all unique years.}
 
 \item{grid_size}{Numeric. The side length of the spatial grid cells in kilometers. 

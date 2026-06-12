@@ -9,11 +9,12 @@ plot_sos(
   CPUE_set,
   ref_period = NULL,
   period_type = "target",
-  ref_series = 1,
+  ref_series,
   landings_data = NULL,
   plot_exploitation = TRUE,
   cpue_smooth = FALSE,
-  bmsy_proxy = 40
+  bmsy_proxy = 40,
+  ref_mean_type = "geometric"
 )
 }
 \arguments{

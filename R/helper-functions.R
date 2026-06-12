@@ -188,3 +188,28 @@ get_preds <- function(fit, raw_data = NULL, year = NULL){
   )
   
 }
+
+
+#' Clean and format model term labels
+#' 
+#' Dynamically extracts base variables from model term strings (handling backticks 
+#' and mathematical wrappers), replaces specific keywords (e.g., "fyear"), 
+#' replaces underscores with multiplication symbols for interactions, and capitalises the output.
+#' 
+#' @param terms_labels A character vector of raw term names extracted from a model object.
+#' @return A character vector of cleanedterm labels.
+#' @importFrom stringr str_remove_all str_replace_all str_to_sentence
+#' @importFrom stats as.formula
+#' @export
+#'
+cleanup_labels <- Vectorize(function(terms_labels) {
+  # Extract
+  vars <- all.vars(as.formula(paste("~", str_remove_all(terms_labels, "`"))))
+  
+  # Clean
+  clean_vars <- str_replace_all(vars, c("fyear" = "fishing year", "_" = " "))
+  
+  # Collapse and capitalize
+  str_to_sentence(paste(clean_vars, collapse = " \u00D7 "))
+  
+}, USE.NAMES = FALSE)

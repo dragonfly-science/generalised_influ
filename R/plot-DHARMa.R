@@ -295,10 +295,11 @@ plot_DHARMares <- function(diag_metrics) {
 #' @export
 boxplot_DHARMares <- function(diag_metrics) {
   diag_metrics_df <- diag_metrics$diag_metrics
-  term_labels <- diag_metrics$predictors
+  terms_labels <- diag_metrics$predictors
+  clean_labels <- cleanup_labels(terms_labels)
 
   plot_list <- setNames(
-    lapply(term_labels, function(term_label) {
+    lapply(terms_labels, function(term_label) {
       # ----- Prepare data -----
       # Extract vector of predictor values
       pred_vec = diag_metrics_df[[term_label]]
@@ -416,7 +417,7 @@ boxplot_DHARMares <- function(diag_metrics) {
       }
       return(p)
     }),
-    term_labels
+    clean_labels
   )
   return(plot_list)
 }
