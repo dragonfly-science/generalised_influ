@@ -399,13 +399,27 @@ plot_sos <- function(cidx,
     
     # Calculate base value
     b <- ref_mean(ref_vals) * ref_mult
+    # extract top 3 indices
+    last_3_idx <- this_idx  %>%
+  slice_max(order_by = level, n = 3, with_ties = FALSE) %>%
+  pull(index)
+   
     # Calculate stock status indicator:
-   below_target <- any( filter(indices, is_ref)  %>%
-  slice_max(order_by = level, n = 3) %>%
-  pull(index) < b)
+   below_target <- any( last_3_idx < b)
     
-  currentIdx <- filter(indices, is_ref) %>% slice_max(order_by = level, n = 1, with_ties = FALSE) %>% pull(index)  
+    # Caculate index versus target %
+  currentIdx <- first(last_3_idx) 
   idxVsTarget <- scales::percent(currentIdx / b)
+   
+    # Calcuate last year of status change
+  statusChange <- this_idx %>%
+      arrange(level) %>%
+      mutate(crossed = (index >= b) != (lag(index) >= b) |
+              (index >= b*20/bmsy_proxy) != (lag(index) >= b*20/bmsy_proxy) |
+              (index >= b*10/bmsy_proxy) != (lag(index) >= b*10/bmsy_proxy)) %>%
+      filter(crossed) %>%                     
+      pull(level) %>%                        
+      last()
 
     
     # Add B10, B20, B40 and reference period to the plot
@@ -519,6 +533,7 @@ plot_sos <- function(cidx,
   if(!is.null(ref_period)){
   plot_combined@meta$below_target <- below_target
   plot_combined@meta$idxVsTarget <- idxVsTarget
+  plot_combined@meta$statusChange <- statusChange  
   }
 
   return(plot_combined)
