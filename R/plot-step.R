@@ -34,8 +34,7 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowp
     'Previous'   = 'Before adding current predictor',
     'Current'    = 'Current'
   )
-  # --
-  # -Comparison logic---
+  # ---Comparison logic---
   col1 <- custom_palette[['main']]
   if(!is.null(compare_step_df)){
     
@@ -52,7 +51,26 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowp
   
   
   df_all_steps$LineType <- factor(df_all_steps$LineType, levels = c('Reduced', 'Previous', 'Compare', 'Current')) 
-      
+  
+  # ---Arrange plot styling elements---
+  # Create dataframe that governs divider lines between facets
+  all_levels <- levels(df_all_steps$FacetTarget)
+  divider_data <- data.frame(
+                            FacetTarget = factor(all_levels[-length(all_levels)], levels = all_levels), 
+                            y_line = 0                                     
+                            )
+  
+  if (missing(custom_theme)) {
+    # Settings for the default theme_cowplot()
+    border_setting <- element_rect(colour = custom_palette['helper'], fill = NA, linewidth = 0.5)
+    spacing_setting <- unit(0, 'lines')
+  } else {
+    # Settings for when a user passes their own theme
+    border_setting <- element_blank()
+    spacing_setting <- unit(1, 'lines')
+  } 
+  
+  # ---Plot code---
   p <- ggplot(df_all_steps %>% arrange(LineType), aes(x = level, y = median, group = interaction(Model, LineType))) +
     geom_line(aes(color = LineType, linetype = LineType)) +
     scale_color_manual(values = c('Current' = col1, 'Compare' = custom_palette[['previous']], 'Reduced' = custom_palette[['reduced']], 'Previous' = col1 ),
@@ -69,27 +87,28 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowp
                  group_by(FacetTarget) %>%
                  summarize(Model = last(Model),
                            
-                          #  # Following mutate logic is all about location of facet labels
-                          #  is_upward = last(median) > first(median),
-                          #  # Proximity Check: Is the start of the series closer to bottom or top of y-range?
-                          #  is_starting_low = mean(head(median)) < max(median) - mean(head(median)),
-                          #  # If it starts low and goes up -> Place at TOP (y = Inf), otherwise place at BOTTOM (y = -Inf)
-                          #  y_pos = if_else(is_starting_low & is_upward, Inf, -Inf),
-                          #  v_just = if_else(y_pos == Inf, 1.1, -0.1),
+                           # Following mutate logic is all about location of facet labels
+                           is_upward = last(median) > first(median),
+                           # Proximity Check: Is the start of the series closer to bottom or top of y-range?
+                           is_starting_low = mean(head(median)) < max(median) - mean(head(median)),
+                           # If it starts low and goes up -> Place at TOP (y = Inf), otherwise place at BOTTOM (y = -Inf)
+                           y_pos = if_else(is_starting_low & is_upward, Inf, -Inf),
+                           v_just = if_else(y_pos == Inf, 1.1, -0.1),
                  ),
-               aes(label = FacetTarget),
-               x = -Inf, 
-              y = -Inf, 
-              hjust = 0,       
-              vjust = -0.1,    
+               aes(label = FacetTarget, x = -Inf, y = y_pos, vjust = v_just),
                inherit.aes = FALSE,
                # Fixed alignment settings:
                hjust = 0,
-               label.padding = unit(1, 'lines'),
-               label.size = NA,
+               # label.padding = unit(1, 'lines'),
+               linewidth = NA,
                fill = NA,
-               size = 12 / .pt) +
-    geom_hline(yintercept = 0, color = custom_palette['main'], linewidth = 0.5) +
+               size = 9 / .pt) +
+    geom_hline(
+  data = divider_data, 
+  aes(yintercept = y_line), 
+  color = custom_palette['main'], 
+  linewidth = 0.5
+) +
     labs(x = 'Fishing year', y = 'Index') +
     scale_y_continuous(limits = c(0, NA), 
                        expand = expansion(mult = c(0, 0.1)), 
@@ -98,15 +117,17 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowp
     facet_wrap(~FacetTarget, ncol = 1) +
     custom_theme +
     theme(
+      legend.key.width = unit(2.5, 'lines'),
       legend.position = ifelse(is.null(compare_step_df), 'none', 'top'),
       legend.justification = 'right',
       legend.title = element_blank(),
-      strip.background = element_blank(), 
+      strip.background = element_blank(),
       strip.text = element_blank(),       
-    #  panel.border = element_rect(colour = 'black', fill = NA, linewidth = 0.5), 
-      panel.spacing = unit(0, 'lines'),
-      axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
-      axis.title.x = element_text(margin = margin(t = 15))
+      panel.border = border_setting,     
+      panel.spacing = spacing_setting,
+      axis.text.x = element_text(angle = 90, vjust = 1, hjust = 1),
+      axis.title.x = element_text(margin = margin(t = 15)),
+      plot.background = element_rect(fill = 'white', color = NA),
     )
   
   return(p)
