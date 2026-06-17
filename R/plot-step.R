@@ -11,7 +11,7 @@
 #' @importFrom cowplot theme_cowplot 
 #' @export
 
-plot_step <- function(step_df, compare_step_df = NULL){
+plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowplot(), custom_palette = default_palette){
   
   model_names <- levels(step_df$Model)
   # Generate the background data for every facet
@@ -22,21 +22,21 @@ plot_step <- function(step_df, compare_step_df = NULL){
       mutate(
         FacetTarget = factor(model_names[i]),
         LineType = case_when(
-          as.numeric(Model) == i     ~ "Current",
-          as.numeric(Model) == i - 1 ~ "Previous",
-          TRUE                       ~ "Reduced"
+          as.numeric(Model) == i     ~ 'Current',
+          as.numeric(Model) == i - 1 ~ 'Previous',
+          TRUE                       ~ 'Reduced'
         )
       )
   })%>%bind_rows()
 
   legend_labels <- c(
-    "Reduced" = "Reduced models",
-    "Previous"   = "Before adding current predictor",
-    # "Compare"    = paste("Previous update to", max(as.numeric(as.character(compare_step_df$level)))),
-    "Current"    = "Current"
+    'Reduced' = 'Reduced models',
+    'Previous'   = 'Before adding current predictor',
+    'Current'    = 'Current'
   )
   # --
   # -Comparison logic---
+  col1 <- custom_palette[['main']]
   if(!is.null(compare_step_df)){
     
     # transform comparison df and merge it with  all steps df
@@ -45,60 +45,67 @@ plot_step <- function(step_df, compare_step_df = NULL){
                   mutate(FacetTarget = Model,
                          LineType = 'Compare')) 
     
-    legend_labels <- c(legend_labels, "Compare"    = paste("Previous update to", max(as.numeric(as.character(compare_step_df$level)))))
+    legend_labels <- c(legend_labels, 'Compare'    = paste('Previous update to', max(as.numeric(as.character(compare_step_df$level)))))
+    col1 <- custom_palette[['current']] 
   }
   # ---End of comparison logic---
   
   
-  df_all_steps$LineType <- factor(df_all_steps$LineType, levels = names(legend_labels)) 
-  
+  df_all_steps$LineType <- factor(df_all_steps$LineType, levels = c('Reduced', 'Previous', 'Compare', 'Current')) 
+      
   p <- ggplot(df_all_steps %>% arrange(LineType), aes(x = level, y = median, group = interaction(Model, LineType))) +
-    geom_line(aes(color = LineType, linetype = LineType), linewidth = 0.5 ) +
-    scale_color_manual(values = c("Current" = "royalblue", "Compare" = 'palevioletred4', "Reduced" = "grey85", "Previous" = "black" ),
+    geom_line(aes(color = LineType, linetype = LineType)) +
+    scale_color_manual(values = c('Current' = col1, 'Compare' = custom_palette[['previous']], 'Reduced' = custom_palette[['reduced']], 'Previous' = col1 ),
                        labels = legend_labels) +
-    scale_linetype_manual(values = c("Current" = 1, 
-                                     "Compare" = 1, 
-                                     "Reduced" = 1, 
-                                     "Previous" = 2),
+    scale_linetype_manual(values = c('Current' = 1, 
+                                     'Compare' = 1, 
+                                     'Reduced' = 1, 
+                                     'Previous' = 2),
                           labels = legend_labels) +
-    geom_point(data = filter(df_all_steps, LineType == "Current"), 
-               color = "royalblue") +
+    geom_point(data = filter(df_all_steps, LineType == 'Current'), 
+               color = col1) +
     
     geom_label(data = df_all_steps %>%
                  group_by(FacetTarget) %>%
                  summarize(Model = last(Model),
                            
-                           # Following mutate logic is all about location of facet labels
-                           is_upward = last(median) > first(median),
-                           # Proximity Check: Is the start of the series closer to bottom or top of y-range?
-                           is_starting_low = mean(head(median)) < max(median) - mean(head(median)),
-                           # If it starts low and goes up -> Place at TOP (y = Inf), otherwise place at BOTTOM (y = -Inf)
-                           y_pos = if_else(is_starting_low & is_upward, Inf, -Inf),
-                           v_just = if_else(y_pos == Inf, 1.1, -0.1),
+                          #  # Following mutate logic is all about location of facet labels
+                          #  is_upward = last(median) > first(median),
+                          #  # Proximity Check: Is the start of the series closer to bottom or top of y-range?
+                          #  is_starting_low = mean(head(median)) < max(median) - mean(head(median)),
+                          #  # If it starts low and goes up -> Place at TOP (y = Inf), otherwise place at BOTTOM (y = -Inf)
+                          #  y_pos = if_else(is_starting_low & is_upward, Inf, -Inf),
+                          #  v_just = if_else(y_pos == Inf, 1.1, -0.1),
                  ),
-               aes(label = FacetTarget, x = -Inf, y = y_pos, vjust = v_just),
+               aes(label = FacetTarget),
+               x = -Inf, 
+              y = -Inf, 
+              hjust = 0,       
+              vjust = -0.1,    
                inherit.aes = FALSE,
                # Fixed alignment settings:
                hjust = 0,
-               label.padding = unit(1, "lines"),
+               label.padding = unit(1, 'lines'),
                label.size = NA,
                fill = NA,
-               size = 14 / .pt) +
-    labs(x = "Fishing year", y = "Index") +
+               size = 12 / .pt) +
+    geom_hline(yintercept = 0, color = custom_palette['main'], linewidth = 0.5) +
+    labs(x = 'Fishing year', y = 'Index') +
     scale_y_continuous(limits = c(0, NA), 
                        expand = expansion(mult = c(0, 0.1)), 
                        guide = guide_axis(check.overlap = TRUE),
                        breaks = function(x) unique(pretty(x)[pretty(x) != min(x)]) )+
     facet_wrap(~FacetTarget, ncol = 1) +
-    theme_cowplot() +
+    custom_theme +
     theme(
-      legend.position = ifelse(is.null(compare_step_df), "none", "top"),
+      legend.position = ifelse(is.null(compare_step_df), 'none', 'top'),
+      legend.justification = 'right',
       legend.title = element_blank(),
       strip.background = element_blank(), 
       strip.text = element_blank(),       
-      panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.5), 
-      panel.spacing = unit(0, "lines"),
-      axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15), size =12),
+    #  panel.border = element_rect(colour = 'black', fill = NA, linewidth = 0.5), 
+      panel.spacing = unit(0, 'lines'),
+      axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
       axis.title.x = element_text(margin = margin(t = 15))
     )
   
