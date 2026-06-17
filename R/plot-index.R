@@ -53,12 +53,12 @@ plot_index <- function(index,
       geom_hline(yintercept=1, linetype=2)+
       
       labs(x = "Fishing Year", y = "Index") +
-      scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+      scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.1)))+
       scale_color_manual(values = cols)+
       scale_fill_manual(values = cols)+
       theme_cowplot() +
       theme(
-        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15)),
         panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.8),
         panel.grid.major = element_line(linetype = "dotted", colour = "grey", linewidth = 0.5)
       )
@@ -71,7 +71,7 @@ plot_index <- function(index,
                   data = filter(index, is_stan),
                   fill = fill, color = NA, alpha = 0.1) +
       geom_line(aes(linetype = is_stan, colour = is_stan)) +
-      geom_point(aes(shape = is_stan, colour = is_stan), size = 3) +
+      geom_point(aes(shape = is_stan, colour = is_stan), size = 2) +
       labs(x = "Fishing Year", y = "Index") +
       scale_shape_manual(values = c('TRUE' = 16, 'FALSE' = 1),
                          labels = stan_labels) +
@@ -80,10 +80,10 @@ plot_index <- function(index,
       scale_linetype_manual(
         values = c('TRUE' = "solid", 'FALSE' = "dashed"),
         labels = stan_labels) +
-      scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
+      scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.1))) +
       theme_cowplot() +
       theme(
-        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+        axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15)),
         legend.position = "inside",
         legend.position.inside = c(0.05, 0.9),
         legend.direction = "horizontal",
@@ -109,7 +109,6 @@ plot_index <- function(index,
         list(
           geom_hline(yintercept=1, linetype=2),
           facet_wrap(~Index, scales = 'free_y',ncol=1),
-          scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.1))),
           guides(colour = "none", shape = "none", linetype = "none"),
           theme(panel.border = element_blank())
         )
@@ -288,7 +287,7 @@ trend_divergence <- function(current, last, level, mode = "overlap") {
     scale_x_continuous("Fishing year", breaks = unique(indices$level)) +
     scale_color_manual(values = myColors) +
     theme_cowplot() +
-    theme(axis.text.x = element_text(vjust = 1, hjust = 1, angle = 45),
+    theme(axis.text.x = element_text(vjust = 1, hjust = 1, angle = 45, margin = margin(t = 15)),
           panel.grid.major = element_line(colour = "grey90"),
           legend.position = "bottom",
           legend.direction = "vertical")
@@ -459,7 +458,7 @@ plot_sos <- function(cidx,
     } else{
       list(
         xlab('Fishing year') , 
-        theme(axis.text.x = element_text(vjust = 1, hjust = 1, angle = 45, size = rel(0.7)))
+        axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15), size = 12),
       )
     })
   
@@ -506,7 +505,7 @@ plot_sos <- function(cidx,
       geom_line()+
       geom_point()+
       theme_cowplot() +
-      theme(axis.text.x = element_text(vjust = 1, hjust = 1, angle = 45, size = rel(0.7))) +
+      theme(axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15), size = 12)) +
       if(!is.null(ref_period)){
         geom_hline(yintercept=ref_mean(landings$erate[ landings$is_ref & landings$level %in% ref_period])/ref_mult,
                    linetype='longdash', col='seagreen')

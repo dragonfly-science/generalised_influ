@@ -91,6 +91,7 @@ plot_RIC <- function(fit, grouping_var = 'stat_area', min_records = 10,  add.rho
     labs(x='Fishing year',
          y='Index',
          size="Records") +
+    scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.1)))+
     scale_x_continuous(breaks = function(x) {
       # x is the range of years present in the data
       years <- seq(min(x, na.rm = TRUE), max(x, na.rm = TRUE))
@@ -105,7 +106,7 @@ plot_RIC <- function(fit, grouping_var = 'stat_area', min_records = 10,  add.rho
     }) +
     theme_cowplot()+
     theme(axis.text.x = element_text(hjust = 0,
-                                     angle = 90, size = 10)) +
+                                     angle = 90, size = 12)) +
     (if(add.rho) {
       list(
           geom_text(data = imp_count, aes(x = Inf, y = Inf, label = paste0("N = ", Num)), 

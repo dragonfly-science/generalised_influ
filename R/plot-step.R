@@ -83,7 +83,7 @@ plot_step <- function(step_df, compare_step_df = NULL){
                label.padding = unit(1, "lines"),
                label.size = NA,
                fill = NA,
-               size = 3.5) +
+               size = 14 / .pt) +
     labs(x = "Fishing year", y = "Index") +
     scale_y_continuous(limits = c(0, NA), 
                        expand = expansion(mult = c(0, 0.1)), 
@@ -98,7 +98,7 @@ plot_step <- function(step_df, compare_step_df = NULL){
       strip.text = element_blank(),       
       panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.5), 
       panel.spacing = unit(0, "lines"),
-      axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 10),
+      axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15), size =12),
       axis.title.x = element_text(margin = margin(t = 15))
     )
   

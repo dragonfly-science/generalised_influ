@@ -194,7 +194,7 @@ plot_DHARMares <- function(diag_metrics) {
       linewidth = 1
     ) +
     theme_classic() +
-    theme(axis.title = element_text(size = 10))
+    theme(axis.title = element_text(size = 16))
 
   # (2) ---Residuals vs fitted values---
 
@@ -225,7 +225,7 @@ plot_DHARMares <- function(diag_metrics) {
     ) +
     guides(shape = "none", color = "none", alpha = "none") +
     theme_classic() +
-    theme(axis.title = element_text(size = 10))
+    theme(axis.title = element_text(size = 16))
 
   # (3) ---QQ plot---
 
@@ -247,7 +247,7 @@ plot_DHARMares <- function(diag_metrics) {
     ) +
     geom_abline(intercept = 0, linetype = 'dotted', colour = 'blue') +
     theme_classic() +
-    theme(axis.title = element_text(size = 10))
+    theme(axis.title = element_text(size = 16))
 
   # (4) ---Observed versus fitted values---
   d4 <- ggplot(diag_metrics) +
@@ -264,7 +264,7 @@ plot_DHARMares <- function(diag_metrics) {
     scale_x_continuous(trans = 'log10') +
     scale_y_continuous(trans = 'log10') +
     theme_classic() +
-    theme(axis.title = element_text(size = 10))
+    theme(axis.title = element_text(size = 16))
 
   p <- plot_grid(d1, d2, d3, d4, nrow = 2, align = 'hv')
 
@@ -653,14 +653,14 @@ plot_grid$period_label <- as.character(period_label)
              ylim = c(bbox["ymin"], bbox["ymax"])) +
    facet_wrap(~period_label, ncol = 2) +
    guides(fill = guide_colourbar()) +
-    cowplot::theme_cowplot(font_size = 14) +
+    theme_minimal() +
    theme(
     legend.position = 'right',
-    legend.title = ggplot2::element_text(size = 12),
-    legend.text  = ggplot2::element_text(size = 10),
-    axis.text = ggplot2::element_text(size = 10),
+    legend.title = ggplot2::element_text(size = 16),
+    legend.text  = ggplot2::element_text(size = 14),
+    axis.text = ggplot2::element_text(size = 12),
     strip.text = ggplot2::element_text(
-      size = 14, 
+      size = 20, 
       margin = ggplot2::margin(t = 6, b = 6) # Adds space above and below the text
     ),
     strip.background = ggplot2::element_rect(
