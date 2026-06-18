@@ -379,8 +379,6 @@ cdi_plot_with_indicators <- function(preds_list, compare_preds_list = NULL, cust
       common_theme <- theme(
         axis.title.x = element_text(vjust = 0),
         panel.grid.major = element_line(linewidth = 0.2, color = custom_palette['grid']),
-        # axis.line.x = element_line(colour = custom_palette['helper'], linewidth = 0.6),
-        # axis.line.y = element_line(colour = custom_palette['helper'], linewidth = 0.6)
       )
 
       # No x-labels for vessel_key
@@ -423,7 +421,7 @@ cdi_plot_with_indicators <- function(preds_list, compare_preds_list = NULL, cust
           ),
           color = col1
         ) +
-        geom_hline(yintercept = 1, linetype = "22", color = custom_palette['helper']) +
+        geom_hline(yintercept = 1, linetype = "22", color = custom_palette['main']) +
 
         # Conditional block to display coeffs for a model to be compared with (e.g. last year)
         {
@@ -517,8 +515,8 @@ cdi_plot_with_indicators <- function(preds_list, compare_preds_list = NULL, cust
             )
           }
         } +
-        geom_hline(yintercept = Inf, color = custom_palette['helper'], linewidth = 0.6) + 
-        geom_vline(xintercept = Inf, color = custom_palette['helper'], linewidth = 0.6) +
+        geom_hline(yintercept = Inf, color = custom_palette['main'], linewidth = 0.6) + 
+        geom_vline(xintercept = Inf, color = custom_palette['main'], linewidth = 0.6) +
 
         scale_size_identity() +
         scale_x_discrete(drop = FALSE, labels = x_labels) +
@@ -661,8 +659,8 @@ cdi_plot_with_indicators <- function(preds_list, compare_preds_list = NULL, cust
           panel.grid = element_blank(),
           axis.title = element_blank(),
           axis.text = element_blank(),
-          axis.line.x = element_line(colour = custom_palette['helper'], linewidth = 0.4),
-          axis.line.y = element_line(colour = custom_palette['helper'], linewidth = 0.4)
+          axis.line.x = element_line(colour = custom_palette['main'], linewidth = 0.4),
+          axis.line.y = element_line(colour = custom_palette['main'], linewidth = 0.4)
         )
 
       # Legend for comparison plot
@@ -705,8 +703,8 @@ cdi_plot_with_indicators <- function(preds_list, compare_preds_list = NULL, cust
             vjust = 0.5,
             size = 4
           ) +
-          geom_hline(yintercept = -Inf, color = custom_palette['helper'], linewidth = 0.4) + 
-          geom_vline(xintercept = -Inf, color = custom_palette['helper'], linewidth = 0.4) +
+          geom_hline(yintercept = -Inf, color = custom_palette['main'], linewidth = 0.4) + 
+          geom_vline(xintercept = -Inf, color = custom_palette['main'], linewidth = 0.4) +
 
           coord_cartesian(xlim = c(0, 60), ylim = c(0, 60), expand = FALSE, clip = "off") +
           theme_void()

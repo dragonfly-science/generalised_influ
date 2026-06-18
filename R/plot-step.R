@@ -62,7 +62,7 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowp
   
   if (missing(custom_theme)) {
     # Settings for the default theme_cowplot()
-    border_setting <- element_rect(colour = custom_palette['helper'], fill = NA, linewidth = 0.5)
+    border_setting <- element_rect(colour = custom_palette['main'], fill = NA, linewidth = 0.5)
     spacing_setting <- unit(0, 'lines')
   } else {
     # Settings for when a user passes their own theme
@@ -106,7 +106,7 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowp
     geom_hline(
   data = divider_data, 
   aes(yintercept = y_line), 
-  color = custom_palette['helper'], 
+  color = custom_palette['main'], 
   linewidth = 0.5
 ) +
     labs(x = 'Fishing year', y = 'Index') +

@@ -5,5 +5,8 @@ default_palette <- c(
   'main'     = 'black', 
   'grid'     = 'grey90', 
   'band'     = 'grey80', 
-  'helper'   = 'black'
+  'helper'   = 'black',
+  'extra1'   = '#F5B915FF',
+  'extra2'   = '#08235FFF',
+  'ref'      = 'blue' 
 )

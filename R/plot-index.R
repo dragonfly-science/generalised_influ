@@ -47,7 +47,7 @@ plot_index <- function(index,
   lighten <- colorRampPalette(c(custom_palette['main'], "white"))(100)[40]
   if (missing(custom_theme)) {
     # Settings for the default theme_cowplot()
-    border_setting <- element_rect(colour = custom_palette['helper'], fill = NA, linewidth = 0.8)
+    border_setting <- element_rect(colour = custom_palette['main'], fill = NA, linewidth = 0.8)
     angle_setting <- 45
   } else {
     # Settings for when a user passes their own theme
@@ -110,7 +110,7 @@ plot_index <- function(index,
         list( geom_hline(
             data = filter(index, is_scaled == FALSE), 
             aes(yintercept = -Inf), 
-            color = custom_palette['helper'], 
+            color = custom_palette['main'], 
             linewidth = 0.5
           ),
               geom_hline(data = filter(index, is_scaled == TRUE), aes(yintercept=1), linetype = "22", color = lighten),
@@ -125,7 +125,7 @@ plot_index <- function(index,
       } else if (component=="Combined"){
         # facet option  
         list(
-          geom_hline(data = filter(index, Index != 'Positive'), aes(yintercept = -Inf), color = custom_palette['helper'], linewidth = 0.5),
+          geom_hline(data = filter(index, Index != 'Positive'), aes(yintercept = -Inf), color = custom_palette['main'], linewidth = 0.5),
           geom_hline(yintercept=1, linetype = "22", color = lighten),
           facet_wrap(~Index, scales = 'free_y',ncol=1),
           guides(colour = "none", shape = "none", linetype = "none"),
@@ -378,7 +378,10 @@ plot_sos <- function(cidx,
                      plot_exploitation = TRUE, 
                      cpue_smooth = FALSE, 
                      bmsy_proxy = 40,
-                    ref_mean_type = 'geometric'){
+                    ref_mean_type = 'geometric',
+                  custom_theme = NULL, 
+                  custom_palette = default_palette
+                ){
   
   ref_mean <- function(x) {
     if (ref_mean_type == 'geometric') {
@@ -460,17 +463,38 @@ plot_sos <- function(cidx,
       pull(level) %>%                        
       last()
 
-    
+    # Create a dataframe for the reference lines to map them in aes()
+    ref_lines_df <- data.frame(
+      y_vals = b * c(1, 20/bmsy_proxy, 10/bmsy_proxy),
+      limit_type = factor(
+        c("Target", "Soft Limit", "Hard Limit"), 
+        levels = c("Target", "Soft Limit", "Hard Limit") 
+      )
+    )
     # Add B10, B20, B40 and reference period to the plot
-    g1 <- g1 + geom_hline(yintercept = b * c(1, 20/bmsy_proxy, 10/bmsy_proxy), 
-                          linetype = c(5,2,4), col = c("seagreen", "orange", "tomato")) +
-      geom_vline(xintercept = range(ref_period), linetype = '22', col = 'blue')
-    
+    g1 <- g1 + 
+      geom_hline(
+        data = ref_lines_df,
+        aes(yintercept = y_vals, linewidth = limit_type),
+        color = c("seagreen", "orange", "tomato"), 
+        linetype = c(5, 2, 4),
+        inherit.aes = FALSE
+      ) +
+      scale_linewidth_manual(
+        name = "Reference Limits", 
+        values = c("Target" = 0.5, "Soft Limit" = 0.5, "Hard Limit" = 0.5), 
+        guide = guide_legend(override.aes = list(
+          color = c("seagreen", "orange", "tomato"), 
+          linetype = c(5, 2, 4),                     
+          linewidth = 0.8
+        ))
+      ) +
+      geom_vline(xintercept = range(ref_period), linetype = '22', col = custom_palette['ref'])
   }
   
   # Set colours for plotting sreries: black for reference, grey for the rest.
   series_colors <- setNames(
-  ifelse(indices$is_ref, "black", "grey80"), 
+  ifelse(indices$is_ref, custom_palette['main'], custom_palette['band']), 
   indices$Series
   )
 
@@ -479,7 +503,7 @@ plot_sos <- function(cidx,
     
     # Layer 1: Background (All non-reference series)
     geom_line(data = filter(indices, !is_ref), aes(color = Series)) +
-    geom_point()+
+    geom_point(aes(color = Series))+
     
     # Layer 2: Foreground (The reference series only)
     geom_line(data = filter(indices, is_ref), aes(color = Series)) +
@@ -490,6 +514,7 @@ plot_sos <- function(cidx,
     scale_x_continuous( breaks=unique(indices$level),limits=range(unique(indices$level))) +
     theme_cowplot() +
     theme(panel.grid.major = element_line(colour = 'grey90')) +
+    custom_theme +
     (if(plot_exploitation){
       list(
         xlab('') ,   
@@ -498,9 +523,9 @@ plot_sos <- function(cidx,
     } else{
       list(
         xlab('Fishing year') , 
-        axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15), size = 12),
+        theme(axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15), size = 12))
       )
-    })
+    }) 
   
   # no legend for linetype if there is only one type
   if (length(unique(indices$Index)) == 1) {g1 <- g1 +  scale_linetype(guide = 'none') }
@@ -528,12 +553,13 @@ plot_sos <- function(cidx,
   g2 <- ggplot(landings,aes(level, landings))  +
     scale_y_continuous('Removals (t)', limits=c(0, NA)) +
     scale_x_continuous( breaks=unique(landings$level),limits=range(unique(landings$level))) +
-    geom_line()+
-    geom_point()+
+    geom_line(color = custom_palette['main'])+
+    geom_point(color = custom_palette['main'])+
     xlab('') +
     theme_cowplot() +
-    theme(axis.text.x = element_blank())
-  
+    custom_theme +
+    theme(axis.text.x = element_blank()) 
+
   # --- Exploitation rate plot ---
   if (plot_exploitation) {
     
@@ -542,20 +568,24 @@ plot_sos <- function(cidx,
       scale_x_continuous('Fishing year',breaks=unique(landings$level),limits=range(unique(landings$level))) +
      # scale_x_continuous('Fishing year')+
       scale_y_continuous('Relative exploitation rate', limits = c(0,NA)) +
-      geom_line()+
-      geom_point()+
+      geom_line(color = custom_palette['main'])+
+      geom_point(color = custom_palette['main'])+
       theme_cowplot() +
       theme(axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15), size = 12)) +
+      custom_theme +
       if(!is.null(ref_period)){
         geom_hline(yintercept=ref_mean(landings$erate[ landings$is_ref & landings$level %in% ref_period])/ref_mult,
                    linetype='longdash', col='seagreen')
-      }
+      } 
+        
     
     # three plots
     plot_combined <- (g2 / g1 / g3) + 
       plot_layout(guides = "collect") + 
       plot_annotation(tag_levels = list(c("(a)", "(b)", "(c)"))) & 
-      theme(panel.grid.major = element_line(colour = 'grey90'),
+      theme(legend.position = "bottom",        
+            legend.box = "horizontal",
+            panel.grid.major = element_line(colour = custom_palette['grid']),
             plot.tag.position = c(0.06, 1.15),
             plot.margin = margin(t = 20, r = 2, b = 2, l = 2))
     
@@ -564,7 +594,9 @@ plot_sos <- function(cidx,
     plot_combined <- (g2 / g1) + 
       plot_layout(guides = "collect") + 
       plot_annotation(tag_levels = list(c("(a)", "(b)", "(c)"))) & 
-      theme(panel.grid.major = element_line(colour = 'grey90'),
+      theme(legend.position = "bottom",        
+            legend.box = "horizontal",
+            panel.grid.major = element_line(colour = custom_palette['grid']),
             plot.tag.position = c(0.06, 1.1),
             plot.margin = margin(t = 20, r = 2, b = 2, l = 2))
   }
