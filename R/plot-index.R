@@ -485,8 +485,7 @@ plot_sos <- function(cidx,
         values = c("Target" = 0.5, "Soft Limit" = 0.5, "Hard Limit" = 0.5), 
         guide = guide_legend(override.aes = list(
           color = c("seagreen", "orange", "tomato"), 
-          linetype = c(5, 2, 4),                     
-          linewidth = 0.8
+          linetype = c(5, 2, 4)
         ))
       ) +
       geom_vline(xintercept = range(ref_period), linetype = '22', col = custom_palette['ref'])
@@ -514,18 +513,24 @@ plot_sos <- function(cidx,
     scale_x_continuous( breaks=unique(indices$level),limits=range(unique(indices$level))) +
     theme_cowplot() +
     theme(panel.grid.major = element_line(colour = 'grey90')) +
-    custom_theme +
-    (if(plot_exploitation){
+    (if(plot_exploitation && !is.null(landings_data)){
       list(
-        xlab('') ,   
+        xlab('') ,  
+        custom_theme, 
         theme(axis.text.x = element_blank())
       )
     } else{
       list(
+        coord_cartesian(clip = "off"),
         xlab('Fishing year') , 
-        theme(axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15), size = 12))
+        theme(axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15)),
+              plot.margin = margin(t = 50, r = 5, b = 5, l = 5),
+              legend.position = "top",        
+              legend.box = "horizontal"),
+              custom_theme
       )
     }) 
+   
   
   # no legend for linetype if there is only one type
   if (length(unique(indices$Index)) == 1) {g1 <- g1 +  scale_linetype(guide = 'none') }
@@ -571,7 +576,8 @@ plot_sos <- function(cidx,
       geom_line(color = custom_palette['main'])+
       geom_point(color = custom_palette['main'])+
       theme_cowplot() +
-      theme(axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15), size = 12)) +
+      coord_cartesian(clip = "off") +
+      theme(axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15))) +
       custom_theme +
       if(!is.null(ref_period)){
         geom_hline(yintercept=ref_mean(landings$erate[ landings$is_ref & landings$level %in% ref_period])/ref_mult,
@@ -580,21 +586,42 @@ plot_sos <- function(cidx,
         
     
     # three plots
-    plot_combined <- (g2 / g1 / g3) + 
+    if(missing(custom_theme)){
+      plot_combined <- (g2 / g1 / g3) + 
       plot_layout(guides = "collect") + 
       plot_annotation(tag_levels = list(c("(a)", "(b)", "(c)"))) & 
-      theme(legend.position = "bottom",        
-            legend.box = "horizontal",
-            panel.grid.major = element_line(colour = custom_palette['grid']),
+      theme(panel.grid.major = element_line(colour = 'grey90'),
             plot.tag.position = c(0.06, 1.15),
+            legend.position = 'right',
             plot.margin = margin(t = 20, r = 2, b = 2, l = 2))
+
+    } else {
+    g1 <- g1 +
+  labs(tag = "(b)") +
+  theme(plot.tag.position = c(-0.02, 1.12))
+
+g2 <- g2 +
+  labs(tag = "(a)") +
+  theme(plot.tag.position = c(-0.02, 0.91))
+
+g3 <- g3 +
+  labs(tag = "(c)") +
+  theme(plot.tag.position = c(-0.02, 1.12))
+
+    plot_combined <- (g2 / g1 / g3) + 
+      plot_layout(guides = "collect")  & 
+      theme(legend.position = "top",        
+            legend.box = "horizontal",               
+            panel.grid.major = element_line(colour = custom_palette['grid']),
+            plot.margin = margin(t = 10, r = 2, b = 2, l = 10))
+    }
     
     # two plots
-  } else {
+    } else {
     plot_combined <- (g2 / g1) + 
       plot_layout(guides = "collect") + 
       plot_annotation(tag_levels = list(c("(a)", "(b)", "(c)"))) & 
-      theme(legend.position = "bottom",        
+      theme(legend.position = "top",        
             legend.box = "horizontal",
             panel.grid.major = element_line(colour = custom_palette['grid']),
             plot.tag.position = c(0.06, 1.1),
