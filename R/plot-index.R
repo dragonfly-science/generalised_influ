@@ -17,11 +17,12 @@
 #' 
 plot_index <- function(index, 
                        component = 'Combined',
-                       fill = "black", 
                        probs = c(0.25, 0.75),
                        rescale = 1,
                        show_unstandardised = TRUE,
-                       overlay = FALSE) {
+                       overlay = FALSE,
+                      custom_theme = theme_cowplot(), 
+                      custom_palette = default_palette) {
   
   # Default component "Combined", overwrite it if it does not exist
   if(length(unique(index$Index))==1) component <- unique(index$Index)
@@ -37,30 +38,52 @@ plot_index <- function(index,
     index <- filter(index, is_stan)
   }
   
-  #no unscaled component if not binomial index
+  # no unscaled component if not binomial index
   if (component!='Binomial') {
     index <- filter(index, is_scaled)
   }
   
+  # ---Some plot stying elements---
+  lighten <- colorRampPalette(c(custom_palette['main'], "white"))(100)[40]
+  if (missing(custom_theme)) {
+    # Settings for the default theme_cowplot()
+    border_setting <- element_rect(colour = custom_palette['helper'], fill = NA, linewidth = 0.8)
+    angle_setting <- 45
+  } else {
+    # Settings for when a user passes their own theme
+    border_setting <- element_blank()
+    angle_setting <- 90
+  } 
+  #---
+
   if (overlay){
-    cols <- c('dodgerblue', '#F5B915FF', '#08235FFF' )
+    cols <- unname(custom_palette[c( 'extra1', 'extra2', 'current')])
     p <- ggplot(index, aes(x = level, y = median, group = Index, colour = Index, fill = Index)) +
       geom_ribbon(aes(ymin = Lower, ymax = Upper),
                   data = filter(index, is_stan),
                   color = NA, alpha = 0.1) +
       #geom_pointrange(aes(ymin = Lower, ymax = Upper)) +
       geom_line() +
-      geom_hline(yintercept=1, linetype=2)+
+      geom_point() +
+      geom_hline(yintercept=1, linetype = "22", color = lighten)+
       
       labs(x = "Fishing Year", y = "Index") +
-      scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.1)))+
+      scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0.15, 0.1)))+
       scale_color_manual(values = cols)+
       scale_fill_manual(values = cols)+
-      theme_cowplot() +
+      facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
+                         labeller = as_labeller(c(
+                           'FALSE' = "Binomial - Probabilities",
+                           'TRUE'   = "Combined Index overlayed"
+                         ))) +
+      custom_theme +
       theme(
-        axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15)),
-        panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.8),
-        panel.grid.major = element_line(linetype = "dotted", colour = "grey", linewidth = 0.5)
+        plot.background = element_rect(fill = 'white', color = NA),
+        axis.text.x = element_text(angle = angle_setting, vjust = 1, margin = margin(t = 15)),
+        strip.text = element_text( hjust = 0),
+        strip.background = element_blank(),
+        strip.clip = "off",
+        panel.border = border_setting,
       )
     
     
@@ -69,53 +92,70 @@ plot_index <- function(index,
     p <-  ggplot(index, aes(x = level, y = median, group = is_stan)) +
       geom_ribbon(aes(ymin = Lower, ymax = Upper), 
                   data = filter(index, is_stan),
-                  fill = fill, color = NA, alpha = 0.1) +
+                  fill = custom_palette[['main']], color = NA, alpha = 0.1) +
       geom_line(aes(linetype = is_stan, colour = is_stan)) +
       geom_point(aes(shape = is_stan, colour = is_stan), size = 2) +
       labs(x = "Fishing Year", y = "Index") +
       scale_shape_manual(values = c('TRUE' = 16, 'FALSE' = 1),
                          labels = stan_labels) +
-      scale_colour_manual(values = c('TRUE' = fill, 'FALSE' = "grey40"),
+      scale_colour_manual(values = c('TRUE' = custom_palette[['main']], 'FALSE' = lighten),
                           labels = stan_labels) +
       scale_linetype_manual(
         values = c('TRUE' = "solid", 'FALSE' = "dashed"),
         labels = stan_labels) +
-      scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.1))) +
-      theme_cowplot() +
-      theme(
-        axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15)),
-        legend.position = "inside",
-        legend.position.inside = c(0.05, 0.9),
-        legend.direction = "horizontal",
-        legend.justification = c(0, 0), 
-        legend.title = element_blank(),
-        legend.key.width = unit(2, "cm"),
-        legend.background = element_rect(fill = "transparent", color = NA),
-        panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.8)
-      ) +
+      scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0.15, 0.1))) +
+      
       # For Binomial index we show both probabilities and relative index
       (if(component=='Binomial') {
-        list( facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
+        list( geom_hline(
+            data = filter(index, is_scaled == FALSE), 
+            aes(yintercept = -Inf), 
+            color = custom_palette['helper'], 
+            linewidth = 0.5
+          ),
+              geom_hline(data = filter(index, is_scaled == TRUE), aes(yintercept=1), linetype = "22", color = lighten),
+              facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
                          labeller = as_labeller(c(
                            'FALSE' = "Binomial - Probabilities",
-                           'TRUE'   = "Relative Index"
-                         ))),
-              theme(legend.position.inside = c(0.05, 0.35))
+                           'TRUE'   = "Relative Index for Occurrence of Catch"
+                         )))
         )
         
         # For combined index we show all three indices
       } else if (component=="Combined"){
         # facet option  
         list(
-          geom_hline(yintercept=1, linetype=2),
+          geom_hline(data = filter(index, Index != 'Positive'), aes(yintercept = -Inf), color = custom_palette['helper'], linewidth = 0.5),
+          geom_hline(yintercept=1, linetype = "22", color = lighten),
           facet_wrap(~Index, scales = 'free_y',ncol=1),
           guides(colour = "none", shape = "none", linetype = "none"),
           theme(panel.border = element_blank())
         )
         
       } else {
-        NULL
-      }) 
+        list(
+        geom_hline(yintercept=1, linetype = "22", color = lighten),
+        facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
+                         labeller = as_labeller(c(
+                           'FALSE' = "Binomial - Probabilities",
+                           'TRUE'   = "Relative Index for Positive Catch"
+                         )))
+                        )
+      }) +
+    custom_theme +
+      theme(
+        axis.text.x = element_text(angle = angle_setting, vjust = 1, margin = margin(t = 15)),
+        legend.direction = "horizontal",
+        legend.position = "top",
+        legend.justification = "right",
+        legend.title = element_blank(),
+        legend.key.width = unit(2.5, 'lines'),
+        legend.background = element_rect(fill = "transparent", color = NA),
+        panel.border = border_setting,
+        strip.text = element_text( hjust = 0),
+        plot.background = element_rect(fill = 'white', color = NA),
+        strip.clip = "off",
+      ) 
   }
   
   return(p)
@@ -424,7 +464,7 @@ plot_sos <- function(cidx,
     # Add B10, B20, B40 and reference period to the plot
     g1 <- g1 + geom_hline(yintercept = b * c(1, 20/bmsy_proxy, 10/bmsy_proxy), 
                           linetype = c(5,2,4), col = c("seagreen", "orange", "tomato")) +
-      geom_vline(xintercept = range(ref_period), linetype = 'dashed', col = 'blue')
+      geom_vline(xintercept = range(ref_period), linetype = '22', col = 'blue')
     
   }
   

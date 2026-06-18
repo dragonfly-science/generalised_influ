@@ -423,7 +423,7 @@ cdi_plot_with_indicators <- function(preds_list, compare_preds_list = NULL, cust
           ),
           color = col1
         ) +
-        geom_hline(yintercept = 1, linetype = "dashed", color = custom_palette['helper']) +
+        geom_hline(yintercept = 1, linetype = "22", color = custom_palette['helper']) +
 
         # Conditional block to display coeffs for a model to be compared with (e.g. last year)
         {
@@ -612,7 +612,7 @@ cdi_plot_with_indicators <- function(preds_list, compare_preds_list = NULL, cust
         } +
 
         # In the middle layer: Black dots and lines for current (or only) model
-        geom_vline(xintercept = 1, linetype = "dashed", color = custom_palette['helper']) +
+        geom_vline(xintercept = 1, linetype = "22", color = custom_palette['helper']) +
         geom_line(group = 1, col = col1) +
         geom_point(size = 2, pch = 16, col = col1) +
 

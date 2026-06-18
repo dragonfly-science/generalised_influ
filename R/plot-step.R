@@ -57,7 +57,7 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowp
   all_levels <- levels(df_all_steps$FacetTarget)
   divider_data <- data.frame(
                             FacetTarget = factor(all_levels[-length(all_levels)], levels = all_levels), 
-                            y_line = 0                                     
+                            y_line = -Inf                                     
                             )
   
   if (missing(custom_theme)) {
@@ -106,12 +106,12 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowp
     geom_hline(
   data = divider_data, 
   aes(yintercept = y_line), 
-  color = custom_palette['main'], 
+  color = custom_palette['helper'], 
   linewidth = 0.5
 ) +
     labs(x = 'Fishing year', y = 'Index') +
     scale_y_continuous(limits = c(0, NA), 
-                       expand = expansion(mult = c(0, 0.1)), 
+                       expand = expansion(mult = c(0.1, 0.1)), 
                        guide = guide_axis(check.overlap = TRUE),
                        breaks = function(x) unique(pretty(x)[pretty(x) != min(x)]) )+
     facet_wrap(~FacetTarget, ncol = 1) +
