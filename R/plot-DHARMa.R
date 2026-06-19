@@ -293,7 +293,7 @@ plot_DHARMares <- function(diag_metrics) {
 #' @importFrom stats as.formula ks.test p.adjust na.omit
 #'
 #' @export
-boxplot_DHARMares <- function(diag_metrics) {
+boxplot_DHARMares <- function(diag_metrics, custom_theme = NULL, custom_palette = default_palette) {
   diag_metrics_df <- diag_metrics$diag_metrics
   terms_labels <- diag_metrics$predictors
   clean_labels <- cleanup_labels(terms_labels)
@@ -343,23 +343,9 @@ boxplot_DHARMares <- function(diag_metrics) {
         out$uniformity$KSstat[i] = out$uniformity$details[[i]]$statistic
       }
       out$uniformity$p.value.cor = p.adjust(out$uniformity$p.value)
-      # Low p-vals will have red boxplots
-      box_colors <- ifelse(
-        !is.na(out$uniformity$p.value.cor) & out$uniformity$p.value.cor < 0.05,
-        "red",
-        "grey30"
-      )
+      
 
-      # Create plotting dataframe
-      plot_df <- data.frame(
-        # residuals = qnorm(diag_metrics_df$scaledResiduals),
-        residuals = (diag_metrics_df$scaledResiduals),
-        predictor = pred_vec
-      ) %>%
-        add_count(predictor, name = "n_obs") %>%
-        mutate(
-          is_new = as.character(predictor) %in% as.character(diag_metrics$new_factor_levels[[term_label]])
-        )
+      
 
       # ----- Plotting theme -----
       if ((length(levels(pred_vec)) > 12)) {
@@ -384,26 +370,67 @@ boxplot_DHARMares <- function(diag_metrics) {
         waiver()
       }
 
+      # --- Plotting palettes
+      # Define separate palettes for Fill and Outline
+      # Fills based on p-value
+      KSsignifVector <- !is.na(out$uniformity$p.value.cor) & out$uniformity$p.value.cor < 0.05
+      names(KSsignifVector) <- levels(pred_vec)
+
+                
+      # Create plotting dataframe
+      plot_df <- data.frame(
+        # residuals = qnorm(diag_metrics_df$scaledResiduals),
+        residuals = (diag_metrics_df$scaledResiduals),
+        predictor = pred_vec
+      ) %>%
+        add_count(predictor, name = "n_obs") %>%
+        mutate(
+          is_new = as.character(predictor) %in% as.character(diag_metrics$new_factor_levels[[term_label]]),
+          KSsignif = KSsignifVector[as.character(predictor)],
+          outline = case_when (is_new ~ 'black',
+                              KSsignif ~ custom_palette['previous'],
+                            TRUE ~ custom_palette['dharm'])
+        )
+      
+      
+     
       # ----- Plot code -----
      p <-  ggplot(
         plot_df,
-        aes(x = predictor, y = residuals, fill = predictor, alpha = n_obs)
+        aes(x = predictor, 
+          y = residuals, 
+          fill = KSsignif, 
+          colour = outline, 
+          alpha = n_obs,
+          linewidth = is_new)
       ) +
-        geom_boxplot(outlier.shape = NA) +
-        geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed") +
-        scale_fill_manual(values = box_colors) +
-        guides(fill = "none", alpha = "none", linetype = 'none', linewidth = 'none') +
+        geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "22", color = custom_palette['main']) +
+        geom_boxplot(outlier.shape = NA) + 
+        scale_fill_manual(values = c("TRUE" = custom_palette[['previous']], "FALSE" =custom_palette[['dharm']]),
+        labels = c("TRUE" = "KS significant", "FALSE" = "KS not significant")) +
+        scale_color_identity() +
+        scale_linewidth_manual(values = c("TRUE" = 0.8, "FALSE" = 0.4)) +
+       scale_alpha_continuous( breaks = c(min(plot_df$n_obs), max(plot_df$n_obs)),
+                              labels = c("Less obs", "More obs")
+  ) +
+        guides(linewidth = 'none', colour = "none",
+      alpha = guide_legend(
+      title = NULL, 
+      reverse = TRUE, # Puts 'Large' at the top
+      direction = "vertical",      
+      label.position = "right",
+      override.aes = list(
+        color = NA,       # This removes the whiskers and box outlines!
+        fill = "gray30"   # The base color that will fade from light to dark
+      )
+    )) +
         labs(x = term_label, y = "DHARMa Residuals") +
         scale_x_discrete(drop = FALSE, labels = x_labels) +
         theme_bw() +
-        dynamic_theme
+        custom_theme
 
       if (term_label %in% names(diag_metrics$new_factor_levels)) {
-      p <- p + 
-        aes(linewidth = is_new, linetype = is_new) +
-        scale_linewidth_manual(values = c("TRUE" = 1.5, "FALSE" = 0.5)) +
-        scale_linetype_manual(values = c("TRUE" = "solid", "FALSE" = "dotdash"))
-        
+              
         # Calculate traffic light indicator:
         is_new       <- levels(pred_vec) %in% as.character(diag_metrics$new_factor_levels[[term_label]])
         meanKS_new   <- mean(out$uniformity$KSstat[is_new])
@@ -415,7 +442,7 @@ boxplot_DHARMares <- function(diag_metrics) {
           pct_increase <= 0.2 ~ 'AMBER'
         )
       }
-      return(p)
+      return(p + custom_theme)
     }),
     clean_labels
   )
