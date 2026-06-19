@@ -11,7 +11,7 @@
 #' @importFrom cowplot theme_cowplot 
 #' @export
 
-plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowplot(), custom_palette = default_palette){
+plot_step <- function(step_df, compare_step_df = NULL, custom_theme = NULL, custom_palette = default_palette){
   
   model_names <- levels(step_df$Model)
   # Generate the background data for every facet
@@ -60,16 +60,6 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowp
                             y_line = -Inf                                     
                             )
   
-  if (missing(custom_theme)) {
-    # Settings for the default theme_cowplot()
-    border_setting <- element_rect(colour = custom_palette['main'], fill = NA, linewidth = 0.5)
-    spacing_setting <- unit(0, 'lines')
-  } else {
-    # Settings for when a user passes their own theme
-    border_setting <- element_blank()
-    spacing_setting <- unit(1, 'lines')
-  } 
-  
   # ---Plot code---
   p <- ggplot(df_all_steps %>% arrange(LineType), aes(x = level, y = median, group = interaction(Model, LineType))) +
     geom_line(aes(color = LineType, linetype = LineType)) +
@@ -80,7 +70,7 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowp
                                      'Reduced' = 1, 
                                      'Previous' = 2),
                           labels = legend_labels) +
-    geom_point(data = filter(df_all_steps, LineType == 'Current'), 
+    geom_point(data = filter(df_all_steps, LineType == 'Current'), size = 2,
                color = col1) +
     
     geom_label(data = df_all_steps %>%
@@ -115,7 +105,7 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowp
                        guide = guide_axis(check.overlap = TRUE),
                        breaks = function(x) unique(pretty(x)[pretty(x) != min(x)]) )+
     facet_wrap(~FacetTarget, ncol = 1) +
-    custom_theme +
+    theme_cowplot()+
     theme(
       legend.key.width = unit(2.5, 'lines'),
       legend.position = ifelse(is.null(compare_step_df), 'none', 'top'),
@@ -123,12 +113,13 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = theme_cowp
       legend.title = element_blank(),
       strip.background = element_blank(),
       strip.text = element_blank(),       
-      panel.border = border_setting,     
-      panel.spacing = spacing_setting,
-      axis.text.x = element_text(angle = 90, vjust = 1, hjust = 1),
+      panel.border = element_rect(colour = custom_palette['main'], fill = NA, linewidth = 0.5),     
+      panel.spacing = unit(0, 'lines'),
+      axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
       axis.title.x = element_text(margin = margin(t = 15)),
       plot.background = element_rect(fill = 'white', color = NA),
-    )
+    ) +
+    custom_theme 
   
   return(p)
 }

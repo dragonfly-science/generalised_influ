@@ -57,20 +57,20 @@ plot_index <- function(index,
   #---
 
   if (overlay){
-    cols <- unname(custom_palette[c( 'extra1', 'extra2', 'current')])
+    myColors <- unname(custom_palette[c( 'extra1', 'extra2', 'current')])
     p <- ggplot(index, aes(x = level, y = median, group = Index, colour = Index, fill = Index)) +
       geom_ribbon(aes(ymin = Lower, ymax = Upper),
                   data = filter(index, is_stan),
                   color = NA, alpha = 0.1) +
       #geom_pointrange(aes(ymin = Lower, ymax = Upper)) +
       geom_line() +
-      geom_point() +
-      geom_hline(yintercept=1, linetype = "22", color = lighten)+
+      geom_point(size = 2) +
+      geom_hline(yintercept=1, linetype = "22", color = lighten, linewidth = 0.25)+
       
-      labs(x = "Fishing Year", y = "Index") +
+      labs(x = "Fishing year", y = "Index") +
       scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0.15, 0.1)))+
-      scale_color_manual(values = cols)+
-      scale_fill_manual(values = cols)+
+      scale_color_manual(values = myColors)+
+      scale_fill_manual(values = myColors)+
       facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
                          labeller = as_labeller(c(
                            'FALSE' = "Binomial - Probabilities",
@@ -95,7 +95,7 @@ plot_index <- function(index,
                   fill = custom_palette[['main']], color = NA, alpha = 0.1) +
       geom_line(aes(linetype = is_stan, colour = is_stan)) +
       geom_point(aes(shape = is_stan, colour = is_stan), size = 2) +
-      labs(x = "Fishing Year", y = "Index") +
+      labs(x = "Fishing year", y = "Index") +
       scale_shape_manual(values = c('TRUE' = 16, 'FALSE' = 1),
                          labels = stan_labels) +
       scale_colour_manual(values = c('TRUE' = custom_palette[['main']], 'FALSE' = lighten),
@@ -107,13 +107,17 @@ plot_index <- function(index,
       
       # For Binomial index we show both probabilities and relative index
       (if(component=='Binomial') {
-        list( geom_hline(
+
+        list( 
+          # Separator line between facets 
+          geom_hline(
             data = filter(index, is_scaled == FALSE), 
             aes(yintercept = -Inf), 
             color = custom_palette['main'], 
             linewidth = 0.5
           ),
-              geom_hline(data = filter(index, is_scaled == TRUE), aes(yintercept=1), linetype = "22", color = lighten),
+              # Horisontal line for index  =1
+              geom_hline(data = filter(index, is_scaled == TRUE), aes(yintercept=1), linetype = "22", color = lighten, linewidth = 0.25),
               facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
                          labeller = as_labeller(c(
                            'FALSE' = "Binomial - Probabilities",
@@ -125,8 +129,10 @@ plot_index <- function(index,
       } else if (component=="Combined"){
         # facet option  
         list(
+          # Separator line between facets 
           geom_hline(data = filter(index, Index != 'Positive'), aes(yintercept = -Inf), color = custom_palette['main'], linewidth = 0.5),
-          geom_hline(yintercept=1, linetype = "22", color = lighten),
+          # Horisontal line for index  =1
+          geom_hline(yintercept=1, linetype = "22", color = lighten, linewidth = 0.25),
           facet_wrap(~Index, scales = 'free_y',ncol=1),
           guides(colour = "none", shape = "none", linetype = "none"),
           theme(panel.border = element_blank())
@@ -134,7 +140,7 @@ plot_index <- function(index,
         
       } else {
         list(
-        geom_hline(yintercept=1, linetype = "22", color = lighten),
+        geom_hline(yintercept=1, linetype = "22", color = lighten, linewidth = 0.25),
         facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
                          labeller = as_labeller(c(
                            'FALSE' = "Binomial - Probabilities",
@@ -199,16 +205,15 @@ plot_index <- function(index,
 
 compare_indices <- function(cidx, 
                             CPUE_set, 
-                            # component = 'Positive', 
                             alt_CPUE1 = NULL, 
-                            # componentAlt1=component[1],
                             series_alt1 = NULL,
                             alt_CPUE2 = NULL, 
-                            # componentAlt2=component[1],
                             series_alt2 = NULL,
                             normalise_ENSO = FALSE,
-                            uncert=F){
-  
+                            uncert=F,
+                            custom_theme = NULL, 
+                            custom_palette = default_palette){
+                        
   # if(length(component)==1) component <- rep(component, length(CPUE_set))
   
   # helper function to filter idx and add idx rescaled between -1 and 1.
@@ -222,7 +227,7 @@ process_idx <- function(idx, series_set) {
   indices <- process_idx(cidx, CPUE_set)
   
   if(!is.null(alt_CPUE1)) indices <- bind_rows(indices %>%
-    mutate(Series = paste(Series, 'UPDATE')), process_idx(alt_CPUE1, series_alt1))%>%
+    mutate(Series = as.character(max(level))), process_idx(alt_CPUE1, series_alt1) %>% mutate(Series = as.character(max(level))))%>%
     arrange(Series)
     
   
@@ -286,7 +291,7 @@ trend_divergence <- function(current, last, level, mode = "overlap") {
     select(level, Series, index) %>%
           
     pivot_wider(names_from = Series, values_from = index) %>%
-    rename_with(~ ifelse(grepl("UPDATE", .x), "current", "last"), 
+    rename_with(~ ifelse(as.numeric(.x) == max(as.numeric(.x)), "current", "last"),
                 .cols = -level) %>%
     arrange(level) %>%
     summarise(
@@ -300,7 +305,12 @@ trend_divergence <- function(current, last, level, mode = "overlap") {
  # ------ Plotting code -----------
   
   y_col_name <- if (normalise_ENSO)  "index.norm" else "index"
-  myColors <- c( '#F5B915FF', 'dodgerblue', '#08235FFF', '#4D9221',  "purple4" ,  "violetred")
+  myColors <- if(is.null(alt_CPUE1)) {
+    unname(custom_palette[c( 'extra1', 'extra2', 'current', 'extra3', 'extra4', 'extra5')])
+    } else {
+      unname(custom_palette[c( 'previous', 'current')])
+    }
+    
   n_series <- length(unique(indices$Series))
   
   
@@ -318,19 +328,20 @@ trend_divergence <- function(current, last, level, mode = "overlap") {
     } else {
       list(
         scale_y_continuous("CPUE index", limits = c(0, NA)),
-        geom_hline(yintercept=1, linetype=3),
+        geom_hline(yintercept=1, linetype='22', color = custom_palette['main'], linewidth = 0.25),
         if(uncert)  geom_linerange()
       )
     }) +
     geom_line() +
-    geom_point() +
+    geom_point(size = 2) +
     scale_x_continuous("Fishing year", breaks = unique(indices$level)) +
     scale_color_manual(values = myColors) +
     theme_cowplot() +
     theme(axis.text.x = element_text(vjust = 1, hjust = 1, angle = 45, margin = margin(t = 15)),
-          panel.grid.major = element_line(colour = "grey90"),
+          panel.grid.major = element_line(colour = custom_palette['grid']),
           legend.position = "bottom",
-          legend.direction = "vertical")
+          legend.direction = "vertical") +
+    custom_theme
   
   
   if (length(unique(indices$`Index type`)) == 1) {
@@ -502,7 +513,7 @@ plot_sos <- function(cidx,
     
     # Layer 1: Background (All non-reference series)
     geom_line(data = filter(indices, !is_ref), aes(color = Series)) +
-    geom_point(aes(color = Series))+
+    geom_point(aes(color = Series), size = 2)+
     
     # Layer 2: Foreground (The reference series only)
     geom_line(data = filter(indices, is_ref), aes(color = Series)) +
@@ -559,7 +570,7 @@ plot_sos <- function(cidx,
     scale_y_continuous('Removals (t)', limits=c(0, NA)) +
     scale_x_continuous( breaks=unique(landings$level),limits=range(unique(landings$level))) +
     geom_line(color = custom_palette['main'])+
-    geom_point(color = custom_palette['main'])+
+    geom_point(color = custom_palette['main'], size = 2)+
     xlab('') +
     theme_cowplot() +
     custom_theme +
@@ -574,7 +585,7 @@ plot_sos <- function(cidx,
      # scale_x_continuous('Fishing year')+
       scale_y_continuous('Relative exploitation rate', limits = c(0,NA)) +
       geom_line(color = custom_palette['main'])+
-      geom_point(color = custom_palette['main'])+
+      geom_point(color = custom_palette['main'], size = 2)+
       theme_cowplot() +
       coord_cartesian(clip = "off") +
       theme(axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15))) +
