@@ -12,5 +12,11 @@ default_palette <- c(
   'extra3'   = '#4D9221',
   'extra4'   = "purple4" ,  
   'extra5'   = "violetred",
-  'ref'      = 'blue' 
+  'ref'      = 'blue',
+  'above'    = '#E41A1CCC',
+  'gradient1' = "darkred", 
+  'gradient2' = "tomato", 
+  'gradient3' = "grey90",
+  'gradient4' = "cornflowerblue", 
+  'gradient5'  = "darkblue"
 )

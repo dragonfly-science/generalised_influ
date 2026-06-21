@@ -10,6 +10,7 @@
 #' @importFrom stats dunif model.frame model.response
 #' @import DHARMa
 #' @importFrom cowplot plot_grid
+#' @importFrom patchwork plot_layout
 #' @export
 #'
 
@@ -157,7 +158,7 @@ attr(diag_metrics, "predictors") <- all.vars(delete.response(terms(fit)))
 #' @export
 #'
 #'
-plot_DHARMares <- function(diag_metrics) {
+plot_DHARMares <- function(diag_metrics, custom_palette = default_palette) {
 
   diag_metrics <- diag_metrics$diag_metrics
   #______________________________________________________________________________
@@ -171,7 +172,7 @@ plot_DHARMares <- function(diag_metrics) {
     plot = F
   )
   p_vals <- q_test$pvals
-  line_colours <- ifelse(p_vals <= 0.05, "red", "black")
+  line_colours <- ifelse(p_vals <= 0.05, custom_palette[['above']], custom_palette[['reduced']])
 
   #______________________________________________________________________________
   #  Plotting code
@@ -183,18 +184,18 @@ plot_DHARMares <- function(diag_metrics) {
       aes(x = qnorm(scaledResiduals), y = after_stat(density)),
       stat = 'bin',
       binwidth = 0.05,
-      fill = NA,
-      colour = 'black'
+      colour = "white",  # Creates the visual gap between bars
+      linewidth = 0.5,
+      fill = custom_palette['reduced']
     ) +
     labs(x = 'DHARMa residual', y = 'Density') +
     stat_function(
       fun = dnorm,
       #     args = list(min = 0, max = 1),
-      color = "red",
+      color = custom_palette['above'],
       linewidth = 1
     ) +
-    theme_classic() +
-    theme(axis.title = element_text(size = 16))
+    theme_classic() 
 
   # (2) ---Residuals vs fitted values---
 
@@ -208,7 +209,7 @@ plot_DHARMares <- function(diag_metrics) {
       stat = 'unique'
     ) +
     scale_shape_manual(values = c("FALSE" = 1, "TRUE" = 8)) +
-    scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red")) +
+    scale_color_manual(values = c("FALSE" = custom_palette[['reduced']], "TRUE" = custom_palette[['above']])) +
     scale_alpha_manual(values = c("FALSE" = 0.2, "TRUE" = 1)) +
     labs(x = 'Model predictions (rank transformed)', y = 'DHARMa residual') +
     geom_hline(
@@ -224,8 +225,7 @@ plot_DHARMares <- function(diag_metrics) {
       se = FALSE
     ) +
     guides(shape = "none", color = "none", alpha = "none") +
-    theme_classic() +
-    theme(axis.title = element_text(size = 16))
+    theme_classic() 
 
   # (3) ---QQ plot---
 
@@ -239,15 +239,15 @@ plot_DHARMares <- function(diag_metrics) {
       aes(sample = scaledResiduals),
       distribution = stats::qunif,
       dparams = list(min = 0, max = 1),
-      cex = 0.3
+      cex = 0.3,
+      colour = custom_palette['reduced']
     ) +
     labs(
       x = 'DHARMa resid. theoretical quantile',
       y = 'DHARMa resid. sample quantile'
     ) +
     geom_abline(intercept = 0, linetype = 'dotted', colour = 'blue') +
-    theme_classic() +
-    theme(axis.title = element_text(size = 16))
+    theme_classic() 
 
   # (4) ---Observed versus fitted values---
   d4 <- ggplot(diag_metrics) +
@@ -255,7 +255,7 @@ plot_DHARMares <- function(diag_metrics) {
       aes(fitted, observed),
       cex = 0.3,
       shape = 21,
-      color = 'black',
+      color = custom_palette['reduced'],
       fill = 'white',
       stat = 'unique'
     ) +
@@ -263,10 +263,14 @@ plot_DHARMares <- function(diag_metrics) {
     geom_abline(intercept = 0, linetype = 'dotted', colour = 'blue') +
     scale_x_continuous(trans = 'log10') +
     scale_y_continuous(trans = 'log10') +
-    theme_classic() +
-    theme(axis.title = element_text(size = 16))
+    theme_classic() 
 
-  p <- plot_grid(d1, d2, d3, d4, nrow = 2, align = 'hv')
+  p <- (d1 | d2) / (d3 | d4) & 
+    theme(axis.line = element_line(color = custom_palette['helper']),
+          axis.ticks = element_line(color = custom_palette['helper']),
+          axis.text = element_text(colour = custom_palette['helper'], size  = 20),
+          axis.title = element_text(size = 32, color = "black")
+  )
 
   return(p)
 }
@@ -480,7 +484,15 @@ boxplot_DHARMares <- function(diag_metrics, custom_theme = NULL, custom_palette 
 #' @export
 #'
 #' 
-spatial_DHARMares <- function(diag_metrics, coastline = NULL, statareas = NULL, statarea_lab = NULL, plot_time_periods = 'all', grid_size=10, thresh=3, sea_only = FALSE) {
+spatial_DHARMares <- function(diag_metrics, 
+                              coastline = NULL, 
+                              statareas = NULL, 
+                              statarea_lab = NULL, 
+                              plot_time_periods = 'all', 
+                              grid_size=10, 
+                              thresh=3, 
+                              sea_only = FALSE,
+                              custom_palette = default_palette) {
 
   # ---- prepare map data ------
   # Calculate extreme limits based on the data's distribution (use 3x IQR as a threshold)
@@ -658,11 +670,11 @@ plot_grid$period_label <- as.character(period_label)
     geom_sf(data = plot_grid, 
       aes(fill = dharma_norm),
       color = NA) + 
-   (if(!is.null(coastline)){
-  geom_sf(data = coastline, colour = NA, fill = "grey50") 
-   }) +
    (if(!is.null(statareas)){
   geom_sf(data = my_statareas, colour = "azure4", fill = NA, linewidth = 0.1) 
+   }) +
+    (if(!is.null(coastline)){
+  geom_sf(data = coastline, colour = NA, fill = "grey70") 
    }) +
    (if(!is.null(statarea_lab)){
   geom_sf(data = my_labs, ggplot2::aes(label = area_code),
@@ -670,7 +682,7 @@ plot_grid$period_label <- as.character(period_label)
    }) +
     scale_fill_gradientn(
     name = 'Residual',
-    colors = c("darkred", "tomato", "grey90","cornflowerblue", "darkblue"),
+    colors = unname(custom_palette[c( 'gradient1', 'gradient2', 'gradient3', 'gradient4', 'gradient5')]),
     values = scales::rescale(c(-4, -2, 0, 2, 4)),
     limits = c(-4, 4)    
   ) +
@@ -678,22 +690,33 @@ plot_grid$period_label <- as.character(period_label)
    scale_y_continuous(n.breaks = 4) +
    coord_sf(xlim = c(bbox["xmin"], bbox["xmax"]),
              ylim = c(bbox["ymin"], bbox["ymax"])) +
-   facet_wrap(~period_label, ncol = 2) +
+   facet_wrap(~period_label, ncol = 2, axes = "all") +
    guides(fill = guide_colourbar()) +
     theme_minimal() +
    theme(
+
+    # LEGEND
     legend.position = 'right',
-    legend.title = ggplot2::element_text(size = 16),
-    legend.text  = ggplot2::element_text(size = 14),
-    axis.text = ggplot2::element_text(size = 12),
+    legend.title = ggplot2::element_text(size = 14),
+    legend.text  = ggplot2::element_text(size = 9),
+    
+    # AXES 
+      axis.text = ggplot2::element_text(size = 9),
+      axis.ticks = element_line(linewidth = rel(1.5), color = custom_palette['dharm']),
+      axis.ticks.length = unit(10, "pt"),
+      axis.line = element_line(linewidth = rel(1.5), color = custom_palette['dharm']),
+
+    # FACETS  
     strip.text = ggplot2::element_text(
-      size = 20, 
+      size = 18, 
       margin = ggplot2::margin(t = 6, b = 6) # Adds space above and below the text
     ),
     strip.background = ggplot2::element_rect(
       colour = "white",     # White border to blend with the plot background
       linewidth = 2         # Thickness of the fake gap
     ),
+
+    # BORDER
     plot.margin      = grid::unit(c(0, 0, 0, 0), "mm")   
   )
 
