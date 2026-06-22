@@ -165,6 +165,9 @@ plot_DHARMares <- function(diag_metrics, custom_palette = default_palette) {
   #  Prepare residuals
   #______________________________________________________________________________
 
+  # main plotting colour:
+  main_colour <- if(missing(custom_palette)) custom_palette[['dharm']] else custom_palette [['reduced']]
+  
   # prepare quantile test and colour for quantile regression line
   q_test <- DHARMa::testQuantiles(
     diag_metrics$scaledResiduals,
@@ -172,7 +175,8 @@ plot_DHARMares <- function(diag_metrics, custom_palette = default_palette) {
     plot = F
   )
   p_vals <- q_test$pvals
-  line_colours <- ifelse(p_vals <= 0.05, custom_palette[['above']], custom_palette[['reduced']])
+  line_colours <- ifelse(p_vals <= 0.05, custom_palette[['above']], main_colour)
+  
 
   #______________________________________________________________________________
   #  Plotting code
@@ -186,7 +190,7 @@ plot_DHARMares <- function(diag_metrics, custom_palette = default_palette) {
       binwidth = 0.05,
       colour = "white",  # Creates the visual gap between bars
       linewidth = 0.5,
-      fill = custom_palette['reduced']
+      fill = main_colour
     ) +
     labs(x = 'DHARMa residual', y = 'Density') +
     stat_function(
@@ -209,13 +213,13 @@ plot_DHARMares <- function(diag_metrics, custom_palette = default_palette) {
       stat = 'unique'
     ) +
     scale_shape_manual(values = c("FALSE" = 1, "TRUE" = 8)) +
-    scale_color_manual(values = c("FALSE" = custom_palette[['reduced']], "TRUE" = custom_palette[['above']])) +
+    scale_color_manual(values = c("FALSE" = main_colour, "TRUE" = custom_palette[['above']])) +
     scale_alpha_manual(values = c("FALSE" = 0.2, "TRUE" = 1)) +
     labs(x = 'Model predictions (rank transformed)', y = 'DHARMa residual') +
     geom_hline(
       yintercept = c(0.25, 0.5, 0.75),
       color = line_colours,
-      linetype = "dashed",
+      linetype = "22",
       alpha = 0.5
     ) +
     geom_smooth(
@@ -240,7 +244,7 @@ plot_DHARMares <- function(diag_metrics, custom_palette = default_palette) {
       distribution = stats::qunif,
       dparams = list(min = 0, max = 1),
       cex = 0.3,
-      colour = custom_palette['reduced']
+      colour = main_colour
     ) +
     labs(
       x = 'DHARMa resid. theoretical quantile',
@@ -255,7 +259,7 @@ plot_DHARMares <- function(diag_metrics, custom_palette = default_palette) {
       aes(fitted, observed),
       cex = 0.3,
       shape = 21,
-      color = custom_palette['reduced'],
+      color = main_colour,
       fill = 'white',
       stat = 'unique'
     ) +
@@ -392,8 +396,8 @@ boxplot_DHARMares <- function(diag_metrics, custom_theme = NULL, custom_palette 
           is_new = as.character(predictor) %in% as.character(diag_metrics$new_factor_levels[[term_label]]),
           KSsignif = KSsignifVector[as.character(predictor)],
           outline = case_when (is_new ~ 'black',
-                              KSsignif ~ custom_palette['previous'],
-                            TRUE ~ custom_palette['dharm'])
+                              KSsignif ~ my_darken(custom_palette['previous'], factor = 0.8),
+                            TRUE ~ my_darken(custom_palette['dharm'], factor = 0.8))
         )
       
       
@@ -409,29 +413,45 @@ boxplot_DHARMares <- function(diag_metrics, custom_theme = NULL, custom_palette 
           linewidth = is_new)
       ) +
         geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "22", color = custom_palette['main']) +
-        geom_boxplot(outlier.shape = NA) + 
-        scale_fill_manual(values = c("TRUE" = custom_palette[['previous']], "FALSE" =custom_palette[['dharm']]),
-        labels = c("TRUE" = "KS significant", "FALSE" = "KS not significant")) +
+        geom_boxplot(outlier.shape = NA, show.legend = TRUE) + 
+        scale_fill_manual(values = c("TRUE" = custom_palette[['previous']], "FALSE" =custom_palette[['dharm']]), 
+        labels = c("TRUE" = "Significant", "FALSE" = "Not significant"),
+      limits = c(TRUE, FALSE)) +
         scale_color_identity() +
         scale_linewidth_manual(values = c("TRUE" = 0.8, "FALSE" = 0.4)) +
-       scale_alpha_continuous( breaks = c(min(plot_df$n_obs), max(plot_df$n_obs)),
-                              labels = c("Less obs", "More obs")
+       scale_alpha_continuous( breaks = seq(min(plot_df$n_obs), max(plot_df$n_obs), length.out = 3),
+    labels = function(x) {
+      # Only label the top and bottom of the scale to keep it clean
+      ifelse(x == min(x), "Less records", ifelse(x == max(x), "More records", ""))
+    }
   ) +
-        guides(linewidth = 'none', colour = "none",
+        guides(linewidth = 'none',
+      fill = guide_legend(order = 1),
       alpha = guide_legend(
+        order = 2,
       title = NULL, 
       reverse = TRUE, # Puts 'Large' at the top
       direction = "vertical",      
       label.position = "right",
+      byrow = TRUE,
       override.aes = list(
-        color = NA,       # This removes the whiskers and box outlines!
+        color = NA,      
         fill = "gray30"   # The base color that will fade from light to dark
       )
     )) +
-        labs(x = term_label, y = "DHARMa Residuals") +
+        labs(x = term_label, y = "DHARMa Residuals", fill = "Kolmogorov–Smirnov test") +
         scale_x_discrete(drop = FALSE, labels = x_labels) +
-        theme_bw() +
-        custom_theme
+        theme_minimal() +
+      custom_theme +
+       theme(legend.position = "top",
+            legend.justification = "right",
+            legend.direction = "vertical", 
+            legend.box = "horizontal",
+            legend.box.just = "right",
+            legend.key.spacing.x = unit(1.5, 'lines'),
+            legend.key.spacing.y = unit(0, 'mm'),
+            legend.title = element_text(size = 12))
+        
 
       if (term_label %in% names(diag_metrics$new_factor_levels)) {
               
@@ -446,7 +466,7 @@ boxplot_DHARMares <- function(diag_metrics, custom_theme = NULL, custom_palette 
           pct_increase <= 0.2 ~ 'AMBER'
         )
       }
-      return(p + custom_theme)
+      return(p)
     }),
     clean_labels
   )

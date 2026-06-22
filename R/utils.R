@@ -20,3 +20,16 @@ default_palette <- c(
   'gradient4' = "cornflowerblue", 
   'gradient5'  = "darkblue"
 )
+
+my_darken <- function(color, factor = 0.7) {
+  # Convert Hex to RGB matrix
+  rgb_vals <- col2rgb(color) 
+  
+  # Do the math and convert back to Hex
+  rgb(
+    rgb_vals["red", ] * factor, 
+    rgb_vals["green", ] * factor, 
+    rgb_vals["blue", ] * factor, 
+    maxColorValue = 255
+  )
+}
