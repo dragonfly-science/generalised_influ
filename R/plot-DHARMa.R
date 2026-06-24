@@ -456,14 +456,22 @@ boxplot_DHARMares <- function(diag_metrics, custom_theme = NULL, custom_palette 
       if (term_label %in% names(diag_metrics$new_factor_levels)) {
               
         # Calculate traffic light indicator:
+        # Identify new levels
         is_new       <- levels(pred_vec) %in% as.character(diag_metrics$new_factor_levels[[term_label]])
+
+        # Calculate scalar metrics
         meanKS_new   <- mean(out$uniformity$KSstat[is_new])
         meanKS_old   <- mean(out$uniformity$KSstat[!is_new])
         pct_increase <- (meanKS_new - meanKS_old) / meanKS_old 
+
+        # Check p-values 
+         pvals_new <- out$uniformity$p.value.cor[is_new]
+        all_p_green <- all(!is.na(pvals_new) & pvals_new > 0.05)
         p@meta$indicatorKS  <- case_when(
+          all_p_green ~ 'GREEN',
           pct_increase <= 0.01 ~ 'GREEN',
-          pct_increase > 0.1 ~ 'RED',
-          pct_increase <= 0.2 ~ 'AMBER'
+          pct_increase <= 0.2 ~ 'AMBER',
+          pct_increase > 0.2 ~ 'RED'
         )
       }
       return(p)

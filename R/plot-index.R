@@ -45,19 +45,11 @@ plot_index <- function(index,
   
   # ---Some plot stying elements---
   lighten <- colorRampPalette(c(custom_palette['main'], "white"))(100)[40]
-  if (missing(custom_theme)) {
-    # Settings for the default theme_cowplot()
-    border_setting <- element_rect(colour = custom_palette['main'], fill = NA, linewidth = 0.8)
-    angle_setting <- 45
-  } else {
-    # Settings for when a user passes their own theme
-    border_setting <- element_blank()
-    angle_setting <- 90
-  } 
-  #---
+  
+  #--- Overlayed Plot ---
 
   if (overlay){
-    myColors <- unname(custom_palette[c( 'extra1', 'extra2', 'current')])
+    myColors <- unname(custom_palette[c( 'extra2', 'extra1', 'current')])
     p <- ggplot(index, aes(x = level, y = median, group = Index, colour = Index, fill = Index)) +
       geom_ribbon(aes(ymin = Lower, ymax = Upper),
                   data = filter(index, is_stan),
@@ -71,23 +63,20 @@ plot_index <- function(index,
       scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0.15, 0.1)))+
       scale_color_manual(values = myColors)+
       scale_fill_manual(values = myColors)+
-      facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
-                         labeller = as_labeller(c(
-                           'FALSE' = "Binomial - Probabilities",
-                           'TRUE'   = "Combined Index overlayed"
-                         ))) +
-      custom_theme +
       theme(
         plot.background = element_rect(fill = 'white', color = NA),
-        axis.text.x = element_text(angle = angle_setting, vjust = 1, margin = margin(t = 15)),
+        axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15)),
         strip.text = element_text( hjust = 0),
         strip.background = element_blank(),
         strip.clip = "off",
-        panel.border = border_setting,
-      )
+        panel.border = element_rect(colour = custom_palette['main'], fill = NA, linewidth = 0.8),
+      ) +
+      custom_theme
     
     
   } else {
+
+    # Faceted or Single Plot
     stan_labels <- c("TRUE" = "Standardised", "FALSE" = "Unstandardised")
     p <-  ggplot(index, aes(x = level, y = median, group = is_stan)) +
       geom_ribbon(aes(ymin = Lower, ymax = Upper), 
@@ -140,28 +129,23 @@ plot_index <- function(index,
         
       } else {
         list(
-        geom_hline(yintercept=1, linetype = "22", color = lighten, linewidth = 0.25),
-        facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
-                         labeller = as_labeller(c(
-                           'FALSE' = "Binomial - Probabilities",
-                           'TRUE'   = "Relative Index for Positive Catch"
-                         )))
-                        )
+        geom_hline(yintercept=1, linetype = "22", color = lighten, linewidth = 0.25)
+        )
       }) +
-    custom_theme +
-      theme(
-        axis.text.x = element_text(angle = angle_setting, vjust = 1, margin = margin(t = 15)),
+    theme(
+        axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15)),
         legend.direction = "horizontal",
         legend.position = "top",
         legend.justification = "right",
         legend.title = element_blank(),
         legend.key.width = unit(2.5, 'lines'),
         legend.background = element_rect(fill = "transparent", color = NA),
-        panel.border = border_setting,
         strip.text = element_text( hjust = 0),
-        plot.background = element_rect(fill = 'white', color = NA),
         strip.clip = "off",
-      ) 
+        plot.background = element_rect(fill = 'white', color = NA),
+        panel.border = element_rect(colour = custom_palette['main'], fill = NA, linewidth = 0.8),
+        ) +
+    custom_theme 
   }
   
   return(p)
@@ -306,7 +290,7 @@ trend_divergence <- function(current, last, level, mode = "overlap") {
   
   y_col_name <- if (normalise_ENSO)  "index.norm" else "index"
   myColors <- if(is.null(alt_CPUE1)) {
-    unname(custom_palette[c( 'extra1', 'extra2', 'current', 'extra3', 'extra4', 'extra5')])
+    unname(custom_palette[c( 'extra2', 'extra1', 'current', 'extra3', 'extra4', 'extra5')])
     } else {
       unname(custom_palette[c( 'previous', 'current')])
     }
@@ -546,12 +530,12 @@ plot_sos <- function(cidx,
   # no legend for linetype if there is only one type
   if (length(unique(indices$Index)) == 1) {g1 <- g1 +  scale_linetype(guide = 'none') }
   # no legend for colour if we only plot reference series
-  if (length(unique(indices$Series)) == 1) { g1 <- g1 + guides(color = 'none') }
+  if (length(unique(indices$Series)) == 1 & !is.null(landings_data)) { g1 <- g1 + guides(color = 'none') }
   
   if (cpue_smooth) {g1 <- g1 + geom_smooth(data = this_idx, aes(x=level, y=index))}
   
   # If no landings data, we exit here
-  if(is.null(landings_data)) return(g1)  
+  if(is.null(landings_data)) return(g1 +guides(linewidth = 'none'))  
   
   #_____________________________________________________________________________
   # If have landings data: Removals plot and Exploitation rate plot
@@ -621,7 +605,8 @@ g3 <- g3 +
 
     plot_combined <- (g2 / g1 / g3) + 
       plot_layout(guides = "collect")  & 
-      theme(legend.position = "top",        
+      theme(legend.position = "top", 
+            legend.justification = "right",       
             legend.box = "horizontal",               
             panel.grid.major = element_line(colour = custom_palette['grid']),
             plot.margin = margin(t = 10, r = 2, b = 2, l = 10))
