@@ -97,7 +97,8 @@ plot_RIC <- function(fit, grouping_var = 'stat_area', min_records = 10,  add.rho
     guides(size = guide_legend(override.aes = list(colour = custom_palette['current']))) +
     scale_colour_manual(values = c("Implied index" = custom_palette[['current']], 
                                  "Standardised index" = custom_palette[['previous']])) +
-    scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.1)))+
+     scale_y_continuous(limits = function(x) c(0, max(pretty(x))), 
+                        expand = c(0, 0))+
     scale_x_continuous(breaks = function(x) {
       # x is the range of years present in the data
       years <- seq(min(x, na.rm = TRUE), max(x, na.rm = TRUE))
@@ -125,10 +126,13 @@ plot_RIC <- function(fit, grouping_var = 'stat_area', min_records = 10,  add.rho
     (if(add.rho) {
       list(
           geom_text(data = imp_count, aes(x = Inf, y = Inf, label = paste0("N = ", Num)), 
-                    vjust = 1.2, hjust = 1.1, colour = "#03576E"),
+                    vjust = -3.2, hjust = 1.1, colour = "#03576E"),
           geom_text(data = imp_count, aes(x = Inf, y = Inf, label = paste0('rho == ', round(rho, 2))), 
-                    vjust = 2.6, hjust = 1.1, colour = "#03576E", parse = TRUE)
-        )
+                    vjust = -0.7, hjust = 1.1, colour = "#03576E", parse = TRUE),
+          coord_cartesian(clip = "off"),
+          theme( strip.text = element_text(margin = margin(t = 15, b = 20, unit = "pt") ))
+  )
+       
     } else {
       NULL
     })

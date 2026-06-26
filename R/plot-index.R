@@ -21,7 +21,7 @@ plot_index <- function(index,
                        rescale = 1,
                        show_unstandardised = TRUE,
                        overlay = FALSE,
-                      custom_theme = theme_cowplot(), 
+                      custom_theme = NULL, 
                       custom_palette = default_palette) {
   
   # Default component "Combined", overwrite it if it does not exist
@@ -45,6 +45,7 @@ plot_index <- function(index,
   
   # ---Some plot stying elements---
   lighten <- colorRampPalette(c(custom_palette['main'], "white"))(100)[40]
+  legend.margin.b <- ifelse(component=='Binomial', -30, 10)
   
   #--- Overlayed Plot ---
 
@@ -60,9 +61,11 @@ plot_index <- function(index,
       geom_hline(yintercept=1, linetype = "22", color = lighten, linewidth = 0.25)+
       
       labs(x = "Fishing year", y = "Index") +
-      scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0.15, 0.1)))+
+      scale_y_continuous(limits = function(x) c(0, max(pretty(x))), 
+                         expand = c(0, 0))+
       scale_color_manual(values = myColors)+
       scale_fill_manual(values = myColors)+
+      theme_cowplot()+
       theme(
         plot.background = element_rect(fill = 'white', color = NA),
         axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15)),
@@ -92,7 +95,8 @@ plot_index <- function(index,
       scale_linetype_manual(
         values = c('TRUE' = "solid", 'FALSE' = "dashed"),
         labels = stan_labels) +
-      scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0.15, 0.1))) +
+      scale_y_continuous(limits = function(x) c(0, max(pretty(x))), 
+                        expand = c(0, 0))+
       
       # For Binomial index we show both probabilities and relative index
       (if(component=='Binomial') {
@@ -105,13 +109,15 @@ plot_index <- function(index,
             color = custom_palette['main'], 
             linewidth = 0.5
           ),
-              # Horisontal line for index  =1
-              geom_hline(data = filter(index, is_scaled == TRUE), aes(yintercept=1), linetype = "22", color = lighten, linewidth = 0.25),
-              facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
-                         labeller = as_labeller(c(
-                           'FALSE' = "Binomial - Probabilities",
-                           'TRUE'   = "Relative Index for Occurrence of Catch"
-                         )))
+          # Horisontal line for index  =1
+          geom_hline(data = filter(index, is_scaled == TRUE), aes(yintercept=1), linetype = "22", color = lighten, linewidth = 0.25),
+          facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
+                      labeller = as_labeller(c(
+                        'FALSE' = "Binomial - Probabilities",
+                        'TRUE'   = "Relative Index for Occurrence of Catch"
+                      ))),
+          theme(legend.margin = margin(t = 0, b = -35))
+
         )
         
         # For combined index we show all three indices
@@ -132,6 +138,7 @@ plot_index <- function(index,
         geom_hline(yintercept=1, linetype = "22", color = lighten, linewidth = 0.25)
         )
       }) +
+      theme_cowplot()+
     theme(
         axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15)),
         legend.direction = "horizontal",
@@ -145,7 +152,8 @@ plot_index <- function(index,
         plot.background = element_rect(fill = 'white', color = NA),
         panel.border = element_rect(colour = custom_palette['main'], fill = NA, linewidth = 0.8),
         ) +
-    custom_theme 
+    custom_theme +
+      theme(legend.margin = margin(t = 0, b = legend.margin.b))
   }
   
   return(p)
@@ -319,6 +327,8 @@ trend_divergence <- function(current, last, level, mode = "overlap") {
     geom_line() +
     geom_point(size = 2) +
     scale_x_continuous("Fishing year", breaks = unique(indices$level)) +
+    scale_y_continuous(limits = function(x) c(0, max(pretty(x))), 
+    expand = c(0, 0))+
     scale_color_manual(values = myColors) +
     theme_cowplot() +
     theme(axis.text.x = element_text(vjust = 1, hjust = 1, angle = 45, margin = margin(t = 15)),
@@ -504,7 +514,8 @@ plot_sos <- function(cidx,
     geom_linerange(data = filter(indices, is_ref), aes(ymin = Lower, ymax = Upper, color = Series), linewidth = 0.5) +
     
     scale_color_manual(name = "Series", values = series_colors) +
-    scale_y_continuous('CPUE index', limits = c(0, NA)) +
+    scale_y_continuous('CPUE index', limits = function(x) c(0, max(pretty(x))), 
+                        expand = c(0, 0)) +
     scale_x_continuous( breaks=unique(indices$level),limits=range(unique(indices$level))) +
     theme_cowplot() +
     theme(panel.grid.major = element_line(colour = 'grey90')) +
@@ -551,7 +562,8 @@ plot_sos <- function(cidx,
   # --- Removals plot ---
   
   g2 <- ggplot(landings,aes(level, landings))  +
-    scale_y_continuous('Removals (t)', limits=c(0, NA)) +
+    scale_y_continuous('Removals (t)', limits = function(x) c(0, max(pretty(x))), 
+                        expand = c(0, 0)) +
     scale_x_continuous( breaks=unique(landings$level),limits=range(unique(landings$level))) +
     geom_line(color = custom_palette['main'])+
     geom_point(color = custom_palette['main'], size = 2)+
@@ -567,7 +579,8 @@ plot_sos <- function(cidx,
     g3 <- ggplot(data = landings %>% filter(is_ref), aes(x=level, y=erate))  +
       scale_x_continuous('Fishing year',breaks=unique(landings$level),limits=range(unique(landings$level))) +
      # scale_x_continuous('Fishing year')+
-      scale_y_continuous('Relative exploitation rate', limits = c(0,NA)) +
+      scale_y_continuous('Relative exploitation rate', limits = function(x) c(0, max(pretty(x))), 
+                          expand = c(0, 0)) +
       geom_line(color = custom_palette['main'])+
       geom_point(color = custom_palette['main'], size = 2)+
       theme_cowplot() +
