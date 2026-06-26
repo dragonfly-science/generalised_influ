@@ -77,7 +77,7 @@ plot_RIC <- function(fit, grouping_var = 'stat_area', min_records = 10,  add.rho
   p <-   ggplot(ric_data,
                 aes(x=level,
                     y=imp_scaled))+
-    geom_point(aes(size=n, colour = "Implied index"),  alpha = 0.5)+
+    geom_point(aes(size=n, colour = "Implied index"),  alpha = 0.3)+
     geom_line(aes(colour = "Implied index"))+
     geom_errorbar(aes(ymin=(imp_scaled-1.96*se),
                       ymax=(imp_scaled+1.96*se),

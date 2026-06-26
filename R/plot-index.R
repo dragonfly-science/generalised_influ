@@ -145,7 +145,6 @@ plot_index <- function(index,
         legend.position = "top",
         legend.justification = "right",
         legend.title = element_blank(),
-        legend.key.width = unit(2.5, 'lines'),
         legend.background = element_rect(fill = "transparent", color = NA),
         strip.text = element_text( hjust = 0),
         strip.clip = "off",
@@ -153,7 +152,7 @@ plot_index <- function(index,
         panel.border = element_rect(colour = custom_palette['main'], fill = NA, linewidth = 0.8),
         ) +
     custom_theme +
-      theme(legend.margin = margin(t = 0, b = legend.margin.b))
+      theme(legend.margin = margin(t = 0, b = legend.margin.b), legend.key.width = unit(3.5, 'lines'))
   }
   
   return(p)
@@ -488,7 +487,8 @@ plot_sos <- function(cidx,
       scale_linewidth_manual(
         name = "Reference Limits", 
         values = c("Target" = 0.5, "Soft Limit" = 0.5, "Hard Limit" = 0.5), 
-        guide = guide_legend(override.aes = list(
+        guide = guide_legend(keywidth = unit(3.5, "lines"),
+        override.aes = list(
           color = c("seagreen", "orange", "tomato"), 
           linetype = c(5, 2, 4)
         ))
