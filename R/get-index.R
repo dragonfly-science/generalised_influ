@@ -35,7 +35,7 @@ get_unstandardised <- function(fit, year = NULL, rescale = 1, predictor = NULL) 
     
   } else if (inherits(fit, "survreg")){
     
-    response_name <- as.character(formula(fit)[2])
+    response_name <- deparse(formula(fit)[[2]])
     observed <- fit$model[[response_name]]
     observed <- as.numeric(observed[,1])
     
