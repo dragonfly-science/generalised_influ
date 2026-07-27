@@ -34,8 +34,8 @@ plot_RIC <- function(fit, grouping_var = 'stat_area', min_records = 10,  add.rho
     raw_data <- eval(fit$call$data)
   }
 
-  if(inherits(fit, "survreg")) logobs <- log(fit$model[,1][,1]) else if (grepl("log", formula(fit)[2])) logobs <- fit$model[,1] else logobs <- log(fit$model[,1])
-  if (grepl("log", formula(fit)[2])) logpred <- predict(fit) else logpred <- log(predict(fit))
+  if(inherits(fit, "survreg")) logobs <- log(fit$model[,1][,1]) else if (grepl("log", deparse(formula(fit)[[2]]))) logobs <- fit$model[,1] else logobs <- log(fit$model[,1])
+  if (grepl("log", deparse(formula(fit)[[2]]))) logpred <- predict(fit) else logpred <- log(predict(fit))
 
   #browser()
   ric_data <- tibble(level = raw_data[[year]],
