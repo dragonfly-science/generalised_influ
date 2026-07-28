@@ -520,6 +520,7 @@ spatial_DHARMares <- function(diag_metrics,
                               grid_size=10, 
                               thresh=3, 
                               sea_only = FALSE,
+                              FirstYearSpatialData = 2008,
                               custom_palette = default_palette) {
 
   # ---- prepare map data ------
@@ -588,7 +589,8 @@ bbox <- st_bbox(data_sf)
 
   # ---- Assign time periods to iterate through ------
 if(identical(plot_time_periods, "all")) plot_time_periods <- sort(unique(data_sf$fyear))
-  years_for_stats <- as.list(tail(sort(unique(as.numeric(as.character(data_sf$fyear)))), 10))
+  all_years <- sort(unique(as.numeric(as.character(data_sf$fyear))))
+  years_for_stats <- as.list(tail(all_years[all_years >= FirstYearSpatialData], 10))
 
   time_periods <- union(years_for_stats, plot_time_periods)
   
@@ -625,7 +627,7 @@ results_list <- lapply(time_periods, function(period) {
   sel <- rep(FALSE, length(diag_metrics$scaledResiduals))
   sel[data_this_period$orig_row_id] <- TRUE
 
-  dharma_recalculated <- recalculateResiduals(diag_metrics, sel = sel,   
+  dharma_recalculated <- DHARMa::recalculateResiduals(diag_metrics, sel = sel,   
     group = full_length_group)
   
     
@@ -638,7 +640,7 @@ results_list <- lapply(time_periods, function(period) {
     st_centroid() %>%
     st_coordinates()  
 
-  Moran_test <- testSpatialAutocorrelation(
+  Moran_test <- DHARMa::testSpatialAutocorrelation(
     dharma_recalculated, 
     x = grid_centers[,1], 
     y = grid_centers[,2],
@@ -756,4 +758,5 @@ plot_grid$period_label <- as.character(period_label)
 
   return (combined_plot)
 }
+
 
