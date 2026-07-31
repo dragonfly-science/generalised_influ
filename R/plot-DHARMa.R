@@ -524,16 +524,26 @@ spatial_DHARMares <- function(diag_metrics,
                               custom_palette = default_palette) {
 
   # ---- prepare map data ------
+
+  # Drop missing coordinates
+
+  data <- diag_metrics$diag_metrics %>%
+    mutate(orig_row_id = row_number()) %>%
+    drop_na(lat, lon)
+  
+  if(nrow(data) == 0) {
+    warning("No valid spatial coordinates found in data. Skipping spatial DHARMa analysis.")
+    return(NULL)
+  }
+
   # Calculate extreme limits based on the data's distribution (use 3x IQR as a threshold)
-  q_lat <- quantile(diag_metrics$diag_metrics$lat, probs = c(0.25, 0.75), na.rm = TRUE)
+  q_lat <- quantile(data$lat, probs = c(0.25, 0.75), na.rm = TRUE)
   iqr_lat <- diff(q_lat)
-  q_lon <- quantile(diag_metrics$diag_metrics$lon, probs = c(0.25, 0.75), na.rm = TRUE)
+  q_lon <- quantile(data$lon, probs = c(0.25, 0.75), na.rm = TRUE)
   iqr_lon <- diff(q_lon)
   
   # Filter out the extreme spatial outliers
-  data_sf <- diag_metrics$diag_metrics %>%
-    mutate(orig_row_id = row_number()) %>%
-    # drop_na(lat, lon) %>%
+  data_sf <- data %>%
     filter(
       lat >= (q_lat[1] - 3 * iqr_lat) & lat <= (q_lat[2] + 3 * iqr_lat),
       lon >= (q_lon[1] - 3 * iqr_lon) & lon <= (q_lon[2] + 3 * iqr_lon)
@@ -584,13 +594,18 @@ data_sf <- st_join(data_sf, grid, join = st_intersects) %>%
   group_by(grid_id) %>%
   filter(n() >= thresh) %>%
   ungroup()
+ 
+if(nrow(data_sf) == 0) {
+    warning(paste("No data remaining after applying the minimum observation threshold of", thresh))
+    return(NULL)
+  }
   
 bbox <- st_bbox(data_sf)
 
   # ---- Assign time periods to iterate through ------
 if(identical(plot_time_periods, "all")) plot_time_periods <- sort(unique(data_sf$fyear))
   all_years <- sort(unique(as.numeric(as.character(data_sf$fyear))))
-  years_for_stats <- as.list(tail(all_years[all_years >= FirstYearSpatialData], 10))
+   years_for_stats <- as.list(tail(sort(unique(as.numeric(as.character(data_sf$fyear)))), 10))
 
   time_periods <- union(years_for_stats, plot_time_periods)
   
@@ -640,14 +655,32 @@ results_list <- lapply(time_periods, function(period) {
     st_centroid() %>%
     st_coordinates()  
 
-  Moran_test <- DHARMa::testSpatialAutocorrelation(
-    dharma_recalculated, 
-    x = grid_centers[,1], 
-    y = grid_centers[,2],
-    plot = F
-  )
+  # SAFEGUARD: Moran's I requires at least 4 points to compute standard deviation without returning NaN
+    if (nrow(grid_centers) < 4) {
+      warning(sprintf("Time period %s has too few spatial groups (n=%d) for Moran's I test. Setting metrics to NA.", period_label, nrow(grid_centers)))
+      Moran_test <- list(p.value = NA, statistic = c(observed = NA, expected = NA, sd = NA))
+    } else {
+      # tryCatch prevents unforeseen DHARMa errors (e.g. perfect separation/zero variance) from breaking the loop
+      Moran_test <- tryCatch({
+        DHARMa::testSpatialAutocorrelation(
+          dharma_recalculated, 
+          x = grid_centers[,1], 
+          y = grid_centers[,2],
+          plot = FALSE
+        )
+      }, error = function(e) {
+        warning(sprintf("Moran's I test failed for period %s: %s", period_label, e$message))
+        list(p.value = NA, statistic = c(observed = NA, expected = NA, sd = NA))
+      })
+    }
 
-  p_val_text <- if(Moran_test$p.value < 0.001) "< 0.001" else round(Moran_test$p.value, 3)
+  p_val_text <- if (is.na(Moran_test$p.value)) {
+  "NA"  
+} else if (Moran_test$p.value < 0.001) {
+  "< 0.001"
+} else {
+  round(Moran_test$p.value, 3)
+}
 
   # bind together grid ids and DHARMa resids by grid
   res_df <- data.frame(
@@ -677,7 +710,13 @@ plot_grid$period_label <- as.character(period_label)
   if (list(period) %in% years_for_stats) {
   # store Moran's I p-value for further use e.g. in traffic light table 
   # Rescale Moran's I to Z value so that we can compare it across years
-  MoransI_z_score  <- as.numeric((Moran_test$statistic["observed"] - Moran_test$statistic["expected"]) / Moran_test$statistic["sd"])
+    sd_Moran <- Moran_test$statistic["sd"]
+      if (is.na(sd_Moran) || is.nan(sd_Moran) || sd_Moran == 0) {
+        MoransI_z_score <- NA
+      } else {
+        MoransI_z_score  <- as.numeric((Moran_test$statistic["observed"] - Moran_test$statistic["expected"]) / sd_Moran)
+      }
+  
 
   # calculate proportion of spatial residuals in the tails of the distribution
   tail_prop <- mean(abs(res_df$dharma_norm) > 1.96)
@@ -693,6 +732,11 @@ plot_grid$period_label <- as.character(period_label)
 )
   plot_grid_list <- lapply(results_list, function(x) x$plot_grid)
   plot_grid <- Filter(Negate(is.null), plot_grid_list) %>%dplyr::bind_rows()
+
+  if(nrow(plot_grid) == 0) {
+    warning("No valid plot grid data produced across any time periods. Skipping spatial DHARMa plot generation.")
+    return(NULL)
+  }
 
   # ---- Plot code ------
 
