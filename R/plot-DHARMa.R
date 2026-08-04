@@ -624,10 +624,16 @@ results_list <- lapply(time_periods, function(period) {
   # Label formatting
  period_label <- if (length(period)>1) paste(range(period), collapse = "-") else period
   
-    if(nrow(data_this_period) == 0) {
+  # Some safeguards  
+  if(nrow(data_this_period) == 0) {
       warning(paste("Time period", period_label, "dropped: No grid cells met the threshold of", thresh))
       return(NULL) 
     }
+  
+  if (length(unique(data_this_period$grid_id)) < 2) {
+    warning(sprintf("Time period %s dropped: All data belongs to the same spatial group. DHARMa requires at least 2 groups to recalculate.", period_label))
+    return(NULL)
+  }
   
   # Recalculate DHARMa residulals, while filtering for time period, minimum obs, and aggregating by grid cell
   # This function needs length(group) to be the same as length of simulated residuals in diag_metrics
@@ -728,7 +734,7 @@ plot_grid$period_label <- as.character(period_label)
   }
  
   return(list(plot_grid = plot_grid, stats_row = stats_row))
-    }
+}
 )
   plot_grid_list <- lapply(results_list, function(x) x$plot_grid)
   plot_grid <- Filter(Negate(is.null), plot_grid_list) %>%dplyr::bind_rows()
