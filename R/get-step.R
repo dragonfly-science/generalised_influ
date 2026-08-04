@@ -59,6 +59,12 @@ get_step <- function(fit, pred_grid = NULL, predictor = NULL) {
       # Prepare arguments for the re-fit
       fit_args <- list(object = fit, formula. = newFormula)
       
+      if (inherits(fit, "survreg")) {
+        fit_args$control <- survival::survreg.control	(maxiter = 100)
+          } else if (inherits(fit, "glm")) {
+            fit_args$control <- glm.control(maxit = 100)
+          }
+      
       # Conditionally add spatiotemoral terms to model call
       if(is_sdm){
         # Turn spatial and/or spatio-temporal component on
@@ -120,8 +126,7 @@ get_step <- function(fit, pred_grid = NULL, predictor = NULL) {
   
   if (inherits(fit, 'survreg')) {
     
-    resp <- as.character(formula(fit)[2])
-    resp <- gsub("^Surv\\(|\\)$", "", resp)
+    resp <- all.vars(formula(fit))[1]
     saturated_model <- update(fit, formula. = paste('. ~ ',resp))
     residDev <- 2*(saturated_model$loglik[2] - step_summary$logLik)
     step_summary$r2Dev <- (residDev[1] - residDev)/residDev[1]*100

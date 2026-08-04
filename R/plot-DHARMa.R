@@ -10,6 +10,7 @@
 #' @importFrom stats dunif model.frame model.response
 #' @import DHARMa
 #' @importFrom cowplot plot_grid
+#' @importFrom patchwork plot_layout
 #' @export
 #'
 
@@ -157,13 +158,16 @@ attr(diag_metrics, "predictors") <- all.vars(delete.response(terms(fit)))
 #' @export
 #'
 #'
-plot_DHARMares <- function(diag_metrics) {
+plot_DHARMares <- function(diag_metrics, custom_palette = default_palette) {
 
   diag_metrics <- diag_metrics$diag_metrics
   #______________________________________________________________________________
   #  Prepare residuals
   #______________________________________________________________________________
 
+  # main plotting colour:
+  main_colour <- if(missing(custom_palette)) custom_palette[['dharm']] else custom_palette [['reduced']]
+  
   # prepare quantile test and colour for quantile regression line
   q_test <- DHARMa::testQuantiles(
     diag_metrics$scaledResiduals,
@@ -171,7 +175,8 @@ plot_DHARMares <- function(diag_metrics) {
     plot = F
   )
   p_vals <- q_test$pvals
-  line_colours <- ifelse(p_vals <= 0.05, "red", "black")
+  line_colours <- ifelse(p_vals <= 0.05, custom_palette[['above']], main_colour)
+  
 
   #______________________________________________________________________________
   #  Plotting code
@@ -183,18 +188,18 @@ plot_DHARMares <- function(diag_metrics) {
       aes(x = qnorm(scaledResiduals), y = after_stat(density)),
       stat = 'bin',
       binwidth = 0.05,
-      fill = NA,
-      colour = 'black'
+      colour = "white",  # Creates the visual gap between bars
+      linewidth = 0.5,
+      fill = main_colour
     ) +
     labs(x = 'DHARMa residual', y = 'Density') +
     stat_function(
       fun = dnorm,
       #     args = list(min = 0, max = 1),
-      color = "red",
+      color = custom_palette['above'],
       linewidth = 1
     ) +
-    theme_classic() +
-    theme(axis.title = element_text(size = 10))
+    theme_classic() 
 
   # (2) ---Residuals vs fitted values---
 
@@ -208,13 +213,13 @@ plot_DHARMares <- function(diag_metrics) {
       stat = 'unique'
     ) +
     scale_shape_manual(values = c("FALSE" = 1, "TRUE" = 8)) +
-    scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red")) +
+    scale_color_manual(values = c("FALSE" = main_colour, "TRUE" = custom_palette[['above']])) +
     scale_alpha_manual(values = c("FALSE" = 0.2, "TRUE" = 1)) +
     labs(x = 'Model predictions (rank transformed)', y = 'DHARMa residual') +
     geom_hline(
       yintercept = c(0.25, 0.5, 0.75),
       color = line_colours,
-      linetype = "dashed",
+      linetype = "22",
       alpha = 0.5
     ) +
     geom_smooth(
@@ -224,8 +229,7 @@ plot_DHARMares <- function(diag_metrics) {
       se = FALSE
     ) +
     guides(shape = "none", color = "none", alpha = "none") +
-    theme_classic() +
-    theme(axis.title = element_text(size = 10))
+    theme_classic() 
 
   # (3) ---QQ plot---
 
@@ -239,15 +243,15 @@ plot_DHARMares <- function(diag_metrics) {
       aes(sample = scaledResiduals),
       distribution = stats::qunif,
       dparams = list(min = 0, max = 1),
-      cex = 0.3
+      cex = 0.3,
+      colour = main_colour
     ) +
     labs(
       x = 'DHARMa resid. theoretical quantile',
       y = 'DHARMa resid. sample quantile'
     ) +
     geom_abline(intercept = 0, linetype = 'dotted', colour = 'blue') +
-    theme_classic() +
-    theme(axis.title = element_text(size = 10))
+    theme_classic() 
 
   # (4) ---Observed versus fitted values---
   d4 <- ggplot(diag_metrics) +
@@ -255,7 +259,7 @@ plot_DHARMares <- function(diag_metrics) {
       aes(fitted, observed),
       cex = 0.3,
       shape = 21,
-      color = 'black',
+      color = main_colour,
       fill = 'white',
       stat = 'unique'
     ) +
@@ -263,10 +267,14 @@ plot_DHARMares <- function(diag_metrics) {
     geom_abline(intercept = 0, linetype = 'dotted', colour = 'blue') +
     scale_x_continuous(trans = 'log10') +
     scale_y_continuous(trans = 'log10') +
-    theme_classic() +
-    theme(axis.title = element_text(size = 10))
+    theme_classic() 
 
-  p <- plot_grid(d1, d2, d3, d4, nrow = 2, align = 'hv')
+  p <- (d1 | d2) / (d3 | d4) & 
+    theme(axis.line = element_line(color = custom_palette['helper']),
+          axis.ticks = element_line(color = custom_palette['helper']),
+          axis.text = element_text(colour = custom_palette['helper'], size  = 20),
+          axis.title = element_text(size = 32, color = "black")
+  )
 
   return(p)
 }
@@ -293,7 +301,7 @@ plot_DHARMares <- function(diag_metrics) {
 #' @importFrom stats as.formula ks.test p.adjust na.omit
 #'
 #' @export
-boxplot_DHARMares <- function(diag_metrics) {
+boxplot_DHARMares <- function(diag_metrics, custom_theme = NULL, custom_palette = default_palette) {
   diag_metrics_df <- diag_metrics$diag_metrics
   terms_labels <- diag_metrics$predictors
   clean_labels <- cleanup_labels(terms_labels)
@@ -343,23 +351,9 @@ boxplot_DHARMares <- function(diag_metrics) {
         out$uniformity$KSstat[i] = out$uniformity$details[[i]]$statistic
       }
       out$uniformity$p.value.cor = p.adjust(out$uniformity$p.value)
-      # Low p-vals will have red boxplots
-      box_colors <- ifelse(
-        !is.na(out$uniformity$p.value.cor) & out$uniformity$p.value.cor < 0.05,
-        "red",
-        "grey30"
-      )
+      
 
-      # Create plotting dataframe
-      plot_df <- data.frame(
-        # residuals = qnorm(diag_metrics_df$scaledResiduals),
-        residuals = (diag_metrics_df$scaledResiduals),
-        predictor = pred_vec
-      ) %>%
-        add_count(predictor, name = "n_obs") %>%
-        mutate(
-          is_new = as.character(predictor) %in% as.character(diag_metrics$new_factor_levels[[term_label]])
-        )
+      
 
       # ----- Plotting theme -----
       if ((length(levels(pred_vec)) > 12)) {
@@ -384,35 +378,100 @@ boxplot_DHARMares <- function(diag_metrics) {
         waiver()
       }
 
+      # --- Plotting palettes
+      # Define separate palettes for Fill and Outline
+      # Fills based on p-value
+      KSsignifVector <- !is.na(out$uniformity$p.value.cor) & out$uniformity$p.value.cor < 0.05
+      names(KSsignifVector) <- levels(pred_vec)
+
+                
+      # Create plotting dataframe
+      plot_df <- data.frame(
+        # residuals = qnorm(diag_metrics_df$scaledResiduals),
+        residuals = (diag_metrics_df$scaledResiduals),
+        predictor = pred_vec
+      ) %>%
+        add_count(predictor, name = "n_obs") %>%
+        mutate(
+          is_new = as.character(predictor) %in% as.character(diag_metrics$new_factor_levels[[term_label]]),
+          KSsignif = KSsignifVector[as.character(predictor)],
+          outline = case_when (is_new ~ 'black',
+                              KSsignif ~ my_darken(custom_palette['previous'], factor = 0.8),
+                            TRUE ~ my_darken(custom_palette['dharm'], factor = 0.8))
+        )
+      
+      
+     
       # ----- Plot code -----
      p <-  ggplot(
         plot_df,
-        aes(x = predictor, y = residuals, fill = predictor, alpha = n_obs)
+        aes(x = predictor, 
+          y = residuals, 
+          fill = KSsignif, 
+          colour = outline, 
+          alpha = n_obs,
+          linewidth = is_new)
       ) +
-        geom_boxplot(outlier.shape = NA) +
-        geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "dashed") +
-        scale_fill_manual(values = box_colors) +
-        guides(fill = "none", alpha = "none", linetype = 'none', linewidth = 'none') +
-        labs(x = term_label, y = "DHARMa Residuals") +
+        geom_hline(yintercept = c(0.25, 0.5, 0.75), linetype = "22", color = custom_palette['main']) +
+        geom_boxplot(outlier.shape = NA, show.legend = TRUE) + 
+        scale_fill_manual(values = c("TRUE" = custom_palette[['previous']], "FALSE" =custom_palette[['dharm']]), 
+        labels = c("TRUE" = "Significant", "FALSE" = "Not significant"),
+      limits = c(TRUE, FALSE)) +
+        scale_color_identity() +
+        scale_linewidth_manual(values = c("TRUE" = 0.8, "FALSE" = 0.4)) +
+       scale_alpha_continuous( breaks = seq(min(plot_df$n_obs), max(plot_df$n_obs), length.out = 3),
+    labels = function(x) {
+      # Only label the top and bottom of the scale to keep it clean
+      ifelse(x == min(x), "Less records", ifelse(x == max(x), "More records", ""))
+    }
+  ) +
+        guides(linewidth = 'none',
+      fill = guide_legend(order = 1),
+      alpha = guide_legend(
+        order = 2,
+      title = NULL, 
+      reverse = TRUE, # Puts 'Large' at the top
+      direction = "vertical",      
+      label.position = "right",
+      byrow = TRUE,
+      override.aes = list(
+        color = NA,      
+        fill = "gray30"   # The base color that will fade from light to dark
+      )
+    )) +
+        labs(x = term_label, y = "DHARMa Residuals", fill = "Kolmogorov–Smirnov test") +
         scale_x_discrete(drop = FALSE, labels = x_labels) +
-        theme_bw() +
-        dynamic_theme
+        theme_minimal() +
+      custom_theme +
+       theme(legend.position = "top",
+            legend.justification = "right",
+            legend.direction = "vertical", 
+            legend.box = "horizontal",
+            legend.box.just = "right",
+            legend.key.spacing.x = unit(1.5, 'lines'),
+            legend.key.spacing.y = unit(0, 'mm'),
+            legend.title = element_text(size = 12))
+        
 
       if (term_label %in% names(diag_metrics$new_factor_levels)) {
-      p <- p + 
-        aes(linewidth = is_new, linetype = is_new) +
-        scale_linewidth_manual(values = c("TRUE" = 1.5, "FALSE" = 0.5)) +
-        scale_linetype_manual(values = c("TRUE" = "solid", "FALSE" = "dotdash"))
-        
+              
         # Calculate traffic light indicator:
+        # Identify new levels
         is_new       <- levels(pred_vec) %in% as.character(diag_metrics$new_factor_levels[[term_label]])
+
+        # Calculate scalar metrics
         meanKS_new   <- mean(out$uniformity$KSstat[is_new])
         meanKS_old   <- mean(out$uniformity$KSstat[!is_new])
         pct_increase <- (meanKS_new - meanKS_old) / meanKS_old 
+
+        # Check p-values 
+         pvals_new <- out$uniformity$p.value.cor[is_new]
+        all_p_green <- all(!is.na(pvals_new) & pvals_new > 0.05)
         p@meta$indicatorKS  <- case_when(
+          all_p_green ~ 'GREEN',
           pct_increase <= 0.01 ~ 'GREEN',
-          pct_increase > 0.1 ~ 'RED',
-          pct_increase <= 0.2 ~ 'AMBER'
+          pct_increase <= 0.2 ~ 'AMBER',
+          pct_increase > 0.2 ~ 'RED'
         )
       }
       return(p)
@@ -453,19 +512,38 @@ boxplot_DHARMares <- function(diag_metrics) {
 #' @export
 #'
 #' 
-spatial_DHARMares <- function(diag_metrics, coastline = NULL, statareas = NULL, statarea_lab = NULL, plot_time_periods = 'all', grid_size=10, thresh=3, sea_only = FALSE) {
+spatial_DHARMares <- function(diag_metrics, 
+                              coastline = NULL, 
+                              statareas = NULL, 
+                              statarea_lab = NULL, 
+                              plot_time_periods = 'all', 
+                              grid_size=10, 
+                              thresh=3, 
+                              sea_only = FALSE,
+                              FirstYearSpatialData = 2008,
+                              custom_palette = default_palette) {
 
   # ---- prepare map data ------
+
+  # Drop missing coordinates
+
+  data <- diag_metrics$diag_metrics %>%
+    mutate(orig_row_id = row_number()) %>%
+    drop_na(lat, lon)
+  
+  if(nrow(data) == 0) {
+    warning("No valid spatial coordinates found in data. Skipping spatial DHARMa analysis.")
+    return(NULL)
+  }
+
   # Calculate extreme limits based on the data's distribution (use 3x IQR as a threshold)
-  q_lat <- quantile(diag_metrics$diag_metrics$lat, probs = c(0.25, 0.75), na.rm = TRUE)
+  q_lat <- quantile(data$lat, probs = c(0.25, 0.75), na.rm = TRUE)
   iqr_lat <- diff(q_lat)
-  q_lon <- quantile(diag_metrics$diag_metrics$lon, probs = c(0.25, 0.75), na.rm = TRUE)
+  q_lon <- quantile(data$lon, probs = c(0.25, 0.75), na.rm = TRUE)
   iqr_lon <- diff(q_lon)
   
   # Filter out the extreme spatial outliers
-  data_sf <- diag_metrics$diag_metrics %>%
-    mutate(orig_row_id = row_number()) %>%
-    # drop_na(lat, lon) %>%
+  data_sf <- data %>%
     filter(
       lat >= (q_lat[1] - 3 * iqr_lat) & lat <= (q_lat[2] + 3 * iqr_lat),
       lon >= (q_lon[1] - 3 * iqr_lon) & lon <= (q_lon[2] + 3 * iqr_lon)
@@ -516,12 +594,18 @@ data_sf <- st_join(data_sf, grid, join = st_intersects) %>%
   group_by(grid_id) %>%
   filter(n() >= thresh) %>%
   ungroup()
+ 
+if(nrow(data_sf) == 0) {
+    warning(paste("No data remaining after applying the minimum observation threshold of", thresh))
+    return(NULL)
+  }
   
 bbox <- st_bbox(data_sf)
 
   # ---- Assign time periods to iterate through ------
 if(identical(plot_time_periods, "all")) plot_time_periods <- sort(unique(data_sf$fyear))
-  years_for_stats <- as.list(tail(sort(unique(as.numeric(as.character(data_sf$fyear)))), 10))
+  all_years <- sort(unique(as.numeric(as.character(data_sf$fyear))))
+   years_for_stats <- as.list(tail(sort(unique(as.numeric(as.character(data_sf$fyear)))), 10))
 
   time_periods <- union(years_for_stats, plot_time_periods)
   
@@ -540,10 +624,16 @@ results_list <- lapply(time_periods, function(period) {
   # Label formatting
  period_label <- if (length(period)>1) paste(range(period), collapse = "-") else period
   
-    if(nrow(data_this_period) == 0) {
+  # Some safeguards  
+  if(nrow(data_this_period) == 0) {
       warning(paste("Time period", period_label, "dropped: No grid cells met the threshold of", thresh))
       return(NULL) 
     }
+  
+  if (length(unique(data_this_period$grid_id)) < 2) {
+    warning(sprintf("Time period %s dropped: All data belongs to the same spatial group. DHARMa requires at least 2 groups to recalculate.", period_label))
+    return(NULL)
+  }
   
   # Recalculate DHARMa residulals, while filtering for time period, minimum obs, and aggregating by grid cell
   # This function needs length(group) to be the same as length of simulated residuals in diag_metrics
@@ -558,7 +648,7 @@ results_list <- lapply(time_periods, function(period) {
   sel <- rep(FALSE, length(diag_metrics$scaledResiduals))
   sel[data_this_period$orig_row_id] <- TRUE
 
-  dharma_recalculated <- recalculateResiduals(diag_metrics, sel = sel,   
+  dharma_recalculated <- DHARMa::recalculateResiduals(diag_metrics, sel = sel,   
     group = full_length_group)
   
     
@@ -571,14 +661,32 @@ results_list <- lapply(time_periods, function(period) {
     st_centroid() %>%
     st_coordinates()  
 
-  Moran_test <- testSpatialAutocorrelation(
-    dharma_recalculated, 
-    x = grid_centers[,1], 
-    y = grid_centers[,2],
-    plot = F
-  )
+  # SAFEGUARD: Moran's I requires at least 4 points to compute standard deviation without returning NaN
+    if (nrow(grid_centers) < 4) {
+      warning(sprintf("Time period %s has too few spatial groups (n=%d) for Moran's I test. Setting metrics to NA.", period_label, nrow(grid_centers)))
+      Moran_test <- list(p.value = NA, statistic = c(observed = NA, expected = NA, sd = NA))
+    } else {
+      # tryCatch prevents unforeseen DHARMa errors (e.g. perfect separation/zero variance) from breaking the loop
+      Moran_test <- tryCatch({
+        DHARMa::testSpatialAutocorrelation(
+          dharma_recalculated, 
+          x = grid_centers[,1], 
+          y = grid_centers[,2],
+          plot = FALSE
+        )
+      }, error = function(e) {
+        warning(sprintf("Moran's I test failed for period %s: %s", period_label, e$message))
+        list(p.value = NA, statistic = c(observed = NA, expected = NA, sd = NA))
+      })
+    }
 
-  p_val_text <- if(Moran_test$p.value < 0.001) "< 0.001" else round(Moran_test$p.value, 3)
+  p_val_text <- if (is.na(Moran_test$p.value)) {
+  "NA"  
+} else if (Moran_test$p.value < 0.001) {
+  "< 0.001"
+} else {
+  round(Moran_test$p.value, 3)
+}
 
   # bind together grid ids and DHARMa resids by grid
   res_df <- data.frame(
@@ -608,7 +716,13 @@ plot_grid$period_label <- as.character(period_label)
   if (list(period) %in% years_for_stats) {
   # store Moran's I p-value for further use e.g. in traffic light table 
   # Rescale Moran's I to Z value so that we can compare it across years
-  MoransI_z_score  <- as.numeric((Moran_test$statistic["observed"] - Moran_test$statistic["expected"]) / Moran_test$statistic["sd"])
+    sd_Moran <- Moran_test$statistic["sd"]
+      if (is.na(sd_Moran) || is.nan(sd_Moran) || sd_Moran == 0) {
+        MoransI_z_score <- NA
+      } else {
+        MoransI_z_score  <- as.numeric((Moran_test$statistic["observed"] - Moran_test$statistic["expected"]) / sd_Moran)
+      }
+  
 
   # calculate proportion of spatial residuals in the tails of the distribution
   tail_prop <- mean(abs(res_df$dharma_norm) > 1.96)
@@ -620,10 +734,15 @@ plot_grid$period_label <- as.character(period_label)
   }
  
   return(list(plot_grid = plot_grid, stats_row = stats_row))
-    }
+}
 )
   plot_grid_list <- lapply(results_list, function(x) x$plot_grid)
   plot_grid <- Filter(Negate(is.null), plot_grid_list) %>%dplyr::bind_rows()
+
+  if(nrow(plot_grid) == 0) {
+    warning("No valid plot grid data produced across any time periods. Skipping spatial DHARMa plot generation.")
+    return(NULL)
+  }
 
   # ---- Plot code ------
 
@@ -631,11 +750,11 @@ plot_grid$period_label <- as.character(period_label)
     geom_sf(data = plot_grid, 
       aes(fill = dharma_norm),
       color = NA) + 
-   (if(!is.null(coastline)){
-  geom_sf(data = coastline, colour = NA, fill = "grey50") 
-   }) +
    (if(!is.null(statareas)){
   geom_sf(data = my_statareas, colour = "azure4", fill = NA, linewidth = 0.1) 
+   }) +
+    (if(!is.null(coastline)){
+  geom_sf(data = coastline, colour = NA, fill = "grey70") 
    }) +
    (if(!is.null(statarea_lab)){
   geom_sf(data = my_labs, ggplot2::aes(label = area_code),
@@ -643,7 +762,7 @@ plot_grid$period_label <- as.character(period_label)
    }) +
     scale_fill_gradientn(
     name = 'Residual',
-    colors = c("darkred", "tomato", "grey90","cornflowerblue", "darkblue"),
+    colors = unname(custom_palette[c( 'gradient1', 'gradient2', 'gradient3', 'gradient4', 'gradient5')]),
     values = scales::rescale(c(-4, -2, 0, 2, 4)),
     limits = c(-4, 4)    
   ) +
@@ -651,22 +770,33 @@ plot_grid$period_label <- as.character(period_label)
    scale_y_continuous(n.breaks = 4) +
    coord_sf(xlim = c(bbox["xmin"], bbox["xmax"]),
              ylim = c(bbox["ymin"], bbox["ymax"])) +
-   facet_wrap(~period_label, ncol = 2) +
+   facet_wrap(~period_label, ncol = 2, axes = "all") +
    guides(fill = guide_colourbar()) +
-    cowplot::theme_cowplot(font_size = 14) +
+    theme_minimal() +
    theme(
+
+    # LEGEND
     legend.position = 'right',
-    legend.title = ggplot2::element_text(size = 12),
-    legend.text  = ggplot2::element_text(size = 10),
-    axis.text = ggplot2::element_text(size = 10),
+    legend.title = ggplot2::element_text(size = 14),
+    legend.text  = ggplot2::element_text(size = 9),
+    
+    # AXES 
+      axis.text = ggplot2::element_text(size = 9),
+      axis.ticks = element_line(linewidth = rel(1.5), color = custom_palette['dharm']),
+      axis.ticks.length = unit(10, "pt"),
+      axis.line = element_line(linewidth = rel(1.5), color = custom_palette['dharm']),
+
+    # FACETS  
     strip.text = ggplot2::element_text(
-      size = 14, 
+      size = 18, 
       margin = ggplot2::margin(t = 6, b = 6) # Adds space above and below the text
     ),
     strip.background = ggplot2::element_rect(
       colour = "white",     # White border to blend with the plot background
       linewidth = 2         # Thickness of the fake gap
     ),
+
+    # BORDER
     plot.margin      = grid::unit(c(0, 0, 0, 0), "mm")   
   )
 
@@ -678,4 +808,5 @@ plot_grid$period_label <- as.character(period_label)
 
   return (combined_plot)
 }
+
 

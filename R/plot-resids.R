@@ -9,7 +9,7 @@
 #' @export
 
 
-plot_RIC <- function(fit, grouping_var = 'stat_area', min_records = 10,  add.rho = TRUE){
+plot_RIC <- function(fit, grouping_var = 'stat_area', min_records = 10,  add.rho = TRUE, custom_palette =  default_palette){
   year <- get_first_term(fit)
   grouping_var <- sym(grouping_var)
   
@@ -34,8 +34,8 @@ plot_RIC <- function(fit, grouping_var = 'stat_area', min_records = 10,  add.rho
     raw_data <- eval(fit$call$data)
   }
 
-  if(inherits(fit, "survreg")) logobs <- log(fit$model[,1][,1]) else if (grepl("log", formula(fit)[2])) logobs <- fit$model[,1] else logobs <- log(fit$model[,1])
-  if (grepl("log", formula(fit)[2])) logpred <- predict(fit) else logpred <- log(predict(fit))
+  if(inherits(fit, "survreg")) logobs <- log(fit$model[,1][,1]) else if (grepl("log", deparse(formula(fit)[[2]]))) logobs <- fit$model[,1] else logobs <- log(fit$model[,1])
+  if (grepl("log", deparse(formula(fit)[[2]]))) logpred <- predict(fit) else logpred <- log(predict(fit))
 
   #browser()
   ric_data <- tibble(level = raw_data[[year]],
@@ -72,25 +72,33 @@ plot_RIC <- function(fit, grouping_var = 'stat_area', min_records = 10,  add.rho
            rho=cor(implied, idx_scaled, use="pairwise.complete.obs"))
   
   
+  
+  
   p <-   ggplot(ric_data,
                 aes(x=level,
                     y=imp_scaled))+
-    geom_point(aes(size=n), alpha = 0.5)+
-    geom_line()+
+    geom_point(aes(size=n, colour = "Implied index"),  alpha = 0.3)+
+    geom_line(aes(colour = "Implied index"))+
     geom_errorbar(aes(ymin=(imp_scaled-1.96*se),
-                      ymax=(imp_scaled+1.96*se)),
+                      ymax=(imp_scaled+1.96*se),
+                    colour = "Implied index"),
                   linewidth=0.3,
                   width=0.3)+
     geom_hline(yintercept=1,
                linetype=3,
-               colour='grey')+
-    geom_line(aes(y=idx_scaled, group = 1),
-              col='grey')+
+               color = custom_palette['main'])+
+    geom_line(aes(y=idx_scaled, group = 1,  colour = 'Standardised index'))+
     facet_wrap(as.formula(paste("~", as.character(grouping_var))),
                ncol=2,scales='free_y')+
     labs(x='Fishing year',
          y='Index',
-         size="Records") +
+         size="Records",
+        colour=NULL) +
+    guides(size = guide_legend(override.aes = list(colour = custom_palette['current']))) +
+    scale_colour_manual(values = c("Implied index" = custom_palette[['current']], 
+                                 "Standardised index" = custom_palette[['previous']])) +
+     scale_y_continuous(limits = function(x) c(0, max(pretty(x))), 
+                        expand = c(0, 0))+
     scale_x_continuous(breaks = function(x) {
       # x is the range of years present in the data
       years <- seq(min(x, na.rm = TRUE), max(x, na.rm = TRUE))
@@ -103,16 +111,28 @@ plot_RIC <- function(fit, grouping_var = 'stat_area', min_records = 10,  add.rho
         round(years)
       }
     }) +
+    
     theme_cowplot()+
-    theme(axis.text.x = element_text(hjust = 0,
-                                     angle = 90, size = 10)) +
+    theme(axis.text.x = element_text(hjust = 0, angle = 90, size = 12),
+          legend.position = "top",
+          legend.justification = "right",
+          legend.direction = "horizontal", 
+          legend.box = "vertical",
+          legend.box.just = "right",
+          legend.key.spacing.x = unit(1.5, 'lines'),
+          legend.spacing.y = unit(0, 'mm'),
+          panel.border = element_blank(),
+          panel.spacing = unit(30, "pt")) +
     (if(add.rho) {
       list(
           geom_text(data = imp_count, aes(x = Inf, y = Inf, label = paste0("N = ", Num)), 
-                    vjust = 1.2, hjust = 1.1, colour = 'deepskyblue4'),
+                    vjust = -3.2, hjust = 1.1, colour = "#03576E"),
           geom_text(data = imp_count, aes(x = Inf, y = Inf, label = paste0('rho == ', round(rho, 2))), 
-                    vjust = 2.6, hjust = 1.1, colour = 'deepskyblue4', parse = TRUE)
-        )
+                    vjust = -0.7, hjust = 1.1, colour = "#03576E", parse = TRUE),
+          coord_cartesian(clip = "off"),
+          theme( strip.text = element_text(margin = margin(t = 15, b = 20, unit = "pt") ))
+  )
+       
     } else {
       NULL
     })

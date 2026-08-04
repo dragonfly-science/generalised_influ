@@ -11,7 +11,7 @@
 #' @importFrom cowplot theme_cowplot 
 #' @export
 
-plot_step <- function(step_df, compare_step_df = NULL){
+plot_step <- function(step_df, compare_step_df = NULL, custom_theme = NULL, custom_palette = default_palette){
   
   model_names <- levels(step_df$Model)
   # Generate the background data for every facet
@@ -22,21 +22,20 @@ plot_step <- function(step_df, compare_step_df = NULL){
       mutate(
         FacetTarget = factor(model_names[i]),
         LineType = case_when(
-          as.numeric(Model) == i     ~ "Current",
-          as.numeric(Model) == i - 1 ~ "Previous",
-          TRUE                       ~ "Reduced"
+          as.numeric(Model) == i     ~ 'Current',
+          as.numeric(Model) == i - 1 ~ 'Previous',
+          TRUE                       ~ 'Reduced'
         )
       )
   })%>%bind_rows()
 
   legend_labels <- c(
-    "Reduced" = "Reduced models",
-    "Previous"   = "Before adding current predictor",
-    # "Compare"    = paste("Previous update to", max(as.numeric(as.character(compare_step_df$level)))),
-    "Current"    = "Current"
+    'Reduced' = 'Reduced models',
+    'Previous'   = 'Before adding current predictor',
+    'Current'    = 'Current'
   )
-  # --
-  # -Comparison logic---
+  # ---Comparison logic---
+  col1 <- custom_palette[['main']]
   if(!is.null(compare_step_df)){
     
     # transform comparison df and merge it with  all steps df
@@ -45,24 +44,34 @@ plot_step <- function(step_df, compare_step_df = NULL){
                   mutate(FacetTarget = Model,
                          LineType = 'Compare')) 
     
-    legend_labels <- c(legend_labels, "Compare"    = paste("Previous update to", max(as.numeric(as.character(compare_step_df$level)))))
+    legend_labels <- c(legend_labels, 'Compare'    = paste('Previous update to', max(as.numeric(as.character(compare_step_df$level)))))
+    col1 <- custom_palette[['current']] 
   }
   # ---End of comparison logic---
   
   
-  df_all_steps$LineType <- factor(df_all_steps$LineType, levels = names(legend_labels)) 
+  df_all_steps$LineType <- factor(df_all_steps$LineType, levels = c('Reduced', 'Previous', 'Compare', 'Current')) 
   
+  # ---Arrange plot styling elements---
+  # Create dataframe that governs divider lines between facets
+  all_levels <- levels(df_all_steps$FacetTarget)
+  divider_data <- data.frame(
+                            FacetTarget = factor(all_levels[-length(all_levels)], levels = all_levels), 
+                            y_line = -Inf                                     
+                            )
+  
+  # ---Plot code---
   p <- ggplot(df_all_steps %>% arrange(LineType), aes(x = level, y = median, group = interaction(Model, LineType))) +
-    geom_line(aes(color = LineType, linetype = LineType), linewidth = 0.5 ) +
-    scale_color_manual(values = c("Current" = "royalblue", "Compare" = 'palevioletred4', "Reduced" = "grey85", "Previous" = "black" ),
+    geom_line(aes(color = LineType, linetype = LineType)) +
+    scale_color_manual(values = c('Current' = col1, 'Compare' = custom_palette[['previous']], 'Reduced' = custom_palette[['reduced']], 'Previous' = col1 ),
                        labels = legend_labels) +
-    scale_linetype_manual(values = c("Current" = 1, 
-                                     "Compare" = 1, 
-                                     "Reduced" = 1, 
-                                     "Previous" = 2),
+    scale_linetype_manual(values = c('Current' = 1, 
+                                     'Compare' = 1, 
+                                     'Reduced' = 1, 
+                                     'Previous' = 2),
                           labels = legend_labels) +
-    geom_point(data = filter(df_all_steps, LineType == "Current"), 
-               color = "royalblue") +
+    geom_point(data = filter(df_all_steps, LineType == 'Current'), size = 2,
+               color = col1) +
     
     geom_label(data = df_all_steps %>%
                  group_by(FacetTarget) %>%
@@ -80,27 +89,37 @@ plot_step <- function(step_df, compare_step_df = NULL){
                inherit.aes = FALSE,
                # Fixed alignment settings:
                hjust = 0,
-               label.padding = unit(1, "lines"),
-               label.size = NA,
+               # label.padding = unit(1, 'lines'),
+               linewidth = NA,
                fill = NA,
-               size = 3.5) +
-    labs(x = "Fishing year", y = "Index") +
+               size = 9 / .pt) +
+    geom_hline(
+  data = divider_data, 
+  aes(yintercept = y_line), 
+  color = custom_palette['main'], 
+  linewidth = 0.5
+) +
+    labs(x = 'Fishing year', y = 'Index') +
     scale_y_continuous(limits = c(0, NA), 
-                       expand = expansion(mult = c(0, 0.1)), 
+                       expand = expansion(mult = c(0.1, 0.1)), 
                        guide = guide_axis(check.overlap = TRUE),
                        breaks = function(x) unique(pretty(x)[pretty(x) != min(x)]) )+
     facet_wrap(~FacetTarget, ncol = 1) +
-    theme_cowplot() +
+    theme_cowplot()+
     theme(
-      legend.position = ifelse(is.null(compare_step_df), "none", "top"),
+      legend.key.width = unit(2.5, 'lines'),
+      legend.position = ifelse(is.null(compare_step_df), 'none', 'top'),
+      legend.justification = 'right',
       legend.title = element_blank(),
-      strip.background = element_blank(), 
+      strip.background = element_blank(),
       strip.text = element_blank(),       
-      panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.5), 
-      panel.spacing = unit(0, "lines"),
-      axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 10),
-      axis.title.x = element_text(margin = margin(t = 15))
-    )
+      panel.border = element_rect(colour = custom_palette['main'], fill = NA, linewidth = 0.5),     
+      panel.spacing = unit(0, 'lines'),
+      axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1),
+      axis.title.x = element_text(margin = margin(t = 15)),
+      plot.background = element_rect(fill = 'white', color = NA),
+    ) +
+    custom_theme 
   
   return(p)
 }

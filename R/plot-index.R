@@ -17,11 +17,12 @@
 #' 
 plot_index <- function(index, 
                        component = 'Combined',
-                       fill = "black", 
                        probs = c(0.25, 0.75),
                        rescale = 1,
                        show_unstandardised = TRUE,
-                       overlay = FALSE) {
+                       overlay = FALSE,
+                      custom_theme = NULL, 
+                      custom_palette = default_palette) {
   
   # Default component "Combined", overwrite it if it does not exist
   if(length(unique(index$Index))==1) component <- unique(index$Index)
@@ -37,86 +38,121 @@ plot_index <- function(index,
     index <- filter(index, is_stan)
   }
   
-  #no unscaled component if not binomial index
+  # no unscaled component if not binomial index
   if (component!='Binomial') {
     index <- filter(index, is_scaled)
   }
   
+  # ---Some plot stying elements---
+  lighten <- colorRampPalette(c(custom_palette['main'], "white"))(100)[40]
+  legend.margin.b <- ifelse(component=='Binomial', -30, 10)
+  
+  #--- Overlayed Plot ---
+
   if (overlay){
-    cols <- c('dodgerblue', '#F5B915FF', '#08235FFF' )
+    myColors <- unname(custom_palette[c( 'extra2', 'extra1', 'current')])
     p <- ggplot(index, aes(x = level, y = median, group = Index, colour = Index, fill = Index)) +
       geom_ribbon(aes(ymin = Lower, ymax = Upper),
                   data = filter(index, is_stan),
                   color = NA, alpha = 0.1) +
       #geom_pointrange(aes(ymin = Lower, ymax = Upper)) +
       geom_line() +
-      geom_hline(yintercept=1, linetype=2)+
+      geom_point(size = 2) +
+      geom_hline(yintercept=1, linetype = "22", color = lighten, linewidth = 0.25)+
       
-      labs(x = "Fishing Year", y = "Index") +
-      scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
-      scale_color_manual(values = cols)+
-      scale_fill_manual(values = cols)+
-      theme_cowplot() +
+      labs(x = "Fishing year", y = "Index") +
+      scale_y_continuous(limits = function(x) c(0, max(pretty(x))), 
+                         expand = c(0, 0))+
+      scale_color_manual(values = myColors)+
+      scale_fill_manual(values = myColors)+
+      theme_cowplot()+
       theme(
-        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-        panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.8),
-        panel.grid.major = element_line(linetype = "dotted", colour = "grey", linewidth = 0.5)
-      )
+        plot.background = element_rect(fill = 'white', color = NA),
+        axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15)),
+        strip.text = element_text( hjust = 0),
+        strip.background = element_blank(),
+        strip.clip = "off",
+        panel.border = element_rect(colour = custom_palette['main'], fill = NA, linewidth = 0.8),
+      ) +
+      custom_theme
     
     
   } else {
+
+    # Faceted or Single Plot
     stan_labels <- c("TRUE" = "Standardised", "FALSE" = "Unstandardised")
     p <-  ggplot(index, aes(x = level, y = median, group = is_stan)) +
       geom_ribbon(aes(ymin = Lower, ymax = Upper), 
                   data = filter(index, is_stan),
-                  fill = fill, color = NA, alpha = 0.1) +
+                  fill = custom_palette[['main']], color = NA, alpha = 0.1) +
       geom_line(aes(linetype = is_stan, colour = is_stan)) +
-      geom_point(aes(shape = is_stan, colour = is_stan), size = 3) +
-      labs(x = "Fishing Year", y = "Index") +
+      geom_point(aes(shape = is_stan, colour = is_stan), size = 2) +
+      labs(x = "Fishing year", y = "Index") +
       scale_shape_manual(values = c('TRUE' = 16, 'FALSE' = 1),
                          labels = stan_labels) +
-      scale_colour_manual(values = c('TRUE' = fill, 'FALSE' = "grey40"),
+      scale_colour_manual(values = c('TRUE' = custom_palette[['main']], 'FALSE' = lighten),
                           labels = stan_labels) +
       scale_linetype_manual(
         values = c('TRUE' = "solid", 'FALSE' = "dashed"),
         labels = stan_labels) +
-      scale_y_continuous(expand = expansion(mult = c(0, 0.1))) +
-      theme_cowplot() +
-      theme(
-        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-        legend.position = "inside",
-        legend.position.inside = c(0.05, 0.9),
-        legend.direction = "horizontal",
-        legend.justification = c(0, 0), 
-        legend.title = element_blank(),
-        legend.key.width = unit(2, "cm"),
-        legend.background = element_rect(fill = "transparent", color = NA),
-        panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.8)
-      ) +
+      scale_y_continuous(limits = function(x) c(0, max(pretty(x))), 
+                        expand = c(0, 0))+
+      
       # For Binomial index we show both probabilities and relative index
       (if(component=='Binomial') {
-        list( facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
-                         labeller = as_labeller(c(
-                           'FALSE' = "Binomial - Probabilities",
-                           'TRUE'   = "Relative Index"
-                         ))),
-              theme(legend.position.inside = c(0.05, 0.35))
+
+        list( 
+          # Separator line between facets 
+          geom_hline(
+            data = filter(index, is_scaled == FALSE), 
+            aes(yintercept = -Inf), 
+            color = custom_palette['main'], 
+            linewidth = 0.5
+          ),
+          # Horisontal line for index  =1
+          geom_hline(data = filter(index, is_scaled == TRUE), aes(yintercept=1), linetype = "22", color = lighten, linewidth = 0.25),
+          facet_wrap(~is_scaled, ncol = 1, scales = "free_y", 
+                      labeller = as_labeller(c(
+                        'FALSE' = "Binomial - Probabilities",
+                        'TRUE'   = "Relative Index for Occurrence of Catch"
+                      ))),
+          theme(legend.margin = margin(t = 0, b = -35))
+
         )
         
         # For combined index we show all three indices
       } else if (component=="Combined"){
         # facet option  
         list(
-          geom_hline(yintercept=1, linetype=2),
+          # Separator line between facets 
+          geom_hline(data = filter(index, Index != 'Positive'), aes(yintercept = -Inf), color = custom_palette['main'], linewidth = 0.5),
+          # Horisontal line for index  =1
+          geom_hline(yintercept=1, linetype = "22", color = lighten, linewidth = 0.25),
           facet_wrap(~Index, scales = 'free_y',ncol=1),
-          scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.1))),
           guides(colour = "none", shape = "none", linetype = "none"),
           theme(panel.border = element_blank())
         )
         
       } else {
-        NULL
-      }) 
+        list(
+        geom_hline(yintercept=1, linetype = "22", color = lighten, linewidth = 0.25)
+        )
+      }) +
+      theme_cowplot()+
+    theme(
+        axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15)),
+        legend.direction = "horizontal",
+        legend.position = "top",
+        legend.justification = "right",
+        legend.title = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = NA),
+        strip.text = element_text( hjust = 0),
+        strip.clip = "off",
+        plot.background = element_rect(fill = 'white', color = NA),
+        panel.border = element_rect(colour = custom_palette['main'], fill = NA, linewidth = 0.8),
+        ) +
+    custom_theme +
+      theme(legend.margin = margin(t = 0, b = legend.margin.b), legend.key.width = unit(3.5, 'lines'))
   }
   
   return(p)
@@ -160,16 +196,15 @@ plot_index <- function(index,
 
 compare_indices <- function(cidx, 
                             CPUE_set, 
-                            # component = 'Positive', 
                             alt_CPUE1 = NULL, 
-                            # componentAlt1=component[1],
                             series_alt1 = NULL,
                             alt_CPUE2 = NULL, 
-                            # componentAlt2=component[1],
                             series_alt2 = NULL,
                             normalise_ENSO = FALSE,
-                            uncert=F){
-  
+                            uncert=F,
+                            custom_theme = NULL, 
+                            custom_palette = default_palette){
+                        
   # if(length(component)==1) component <- rep(component, length(CPUE_set))
   
   # helper function to filter idx and add idx rescaled between -1 and 1.
@@ -183,7 +218,7 @@ process_idx <- function(idx, series_set) {
   indices <- process_idx(cidx, CPUE_set)
   
   if(!is.null(alt_CPUE1)) indices <- bind_rows(indices %>%
-    mutate(Series = paste(Series, 'UPDATE')), process_idx(alt_CPUE1, series_alt1))%>%
+    mutate(Series = as.character(max(level))), process_idx(alt_CPUE1, series_alt1) %>% mutate(Series = as.character(max(level))))%>%
     arrange(Series)
     
   
@@ -247,7 +282,7 @@ trend_divergence <- function(current, last, level, mode = "overlap") {
     select(level, Series, index) %>%
           
     pivot_wider(names_from = Series, values_from = index) %>%
-    rename_with(~ ifelse(grepl("UPDATE", .x), "current", "last"), 
+    rename_with(~ ifelse(as.numeric(.x) == max(as.numeric(.x)), "current", "last"),
                 .cols = -level) %>%
     arrange(level) %>%
     summarise(
@@ -261,7 +296,12 @@ trend_divergence <- function(current, last, level, mode = "overlap") {
  # ------ Plotting code -----------
   
   y_col_name <- if (normalise_ENSO)  "index.norm" else "index"
-  myColors <- c( '#F5B915FF', 'dodgerblue', '#08235FFF', '#4D9221',  "purple4" ,  "violetred")
+  myColors <- if(is.null(alt_CPUE1)) {
+    unname(custom_palette[c( 'extra2', 'extra1', 'current', 'extra3', 'extra4', 'extra5')])
+    } else {
+      unname(custom_palette[c( 'previous', 'current')])
+    }
+    
   n_series <- length(unique(indices$Series))
   
   
@@ -279,19 +319,22 @@ trend_divergence <- function(current, last, level, mode = "overlap") {
     } else {
       list(
         scale_y_continuous("CPUE index", limits = c(0, NA)),
-        geom_hline(yintercept=1, linetype=3),
+        geom_hline(yintercept=1, linetype='22', color = custom_palette['main'], linewidth = 0.25),
         if(uncert)  geom_linerange()
       )
     }) +
     geom_line() +
-    geom_point() +
+    geom_point(size = 2) +
     scale_x_continuous("Fishing year", breaks = unique(indices$level)) +
+    scale_y_continuous(limits = function(x) c(0, max(pretty(x))), 
+    expand = c(0, 0))+
     scale_color_manual(values = myColors) +
     theme_cowplot() +
-    theme(axis.text.x = element_text(vjust = 1, hjust = 1, angle = 45),
-          panel.grid.major = element_line(colour = "grey90"),
+    theme(axis.text.x = element_text(vjust = 1, hjust = 1, angle = 45, margin = margin(t = 15)),
+          panel.grid.major = element_line(colour = custom_palette['grid']),
           legend.position = "bottom",
-          legend.direction = "vertical")
+          legend.direction = "vertical") +
+    custom_theme
   
   
   if (length(unique(indices$`Index type`)) == 1) {
@@ -339,7 +382,10 @@ plot_sos <- function(cidx,
                      plot_exploitation = TRUE, 
                      cpue_smooth = FALSE, 
                      bmsy_proxy = 40,
-                    ref_mean_type = 'geometric'){
+                    ref_mean_type = 'geometric',
+                  custom_theme = NULL, 
+                  custom_palette = default_palette
+                ){
   
   ref_mean <- function(x) {
     if (ref_mean_type == 'geometric') {
@@ -421,17 +467,38 @@ plot_sos <- function(cidx,
       pull(level) %>%                        
       last()
 
-    
+    # Create a dataframe for the reference lines to map them in aes()
+    ref_lines_df <- data.frame(
+      y_vals = b * c(1, 20/bmsy_proxy, 10/bmsy_proxy),
+      limit_type = factor(
+        c("Target", "Soft Limit", "Hard Limit"), 
+        levels = c("Target", "Soft Limit", "Hard Limit") 
+      )
+    )
     # Add B10, B20, B40 and reference period to the plot
-    g1 <- g1 + geom_hline(yintercept = b * c(1, 20/bmsy_proxy, 10/bmsy_proxy), 
-                          linetype = c(5,2,4), col = c("seagreen", "orange", "tomato")) +
-      geom_vline(xintercept = range(ref_period), linetype = 'dashed', col = 'blue')
-    
+    g1 <- g1 + 
+      geom_hline(
+        data = ref_lines_df,
+        aes(yintercept = y_vals, linewidth = limit_type),
+        color = c("seagreen", "orange", "tomato"), 
+        linetype = c(5, 2, 4),
+        inherit.aes = FALSE
+      ) +
+      scale_linewidth_manual(
+        name = "Reference Limits", 
+        values = c("Target" = 0.5, "Soft Limit" = 0.5, "Hard Limit" = 0.5), 
+        guide = guide_legend(keywidth = unit(3.5, "lines"),
+        override.aes = list(
+          color = c("seagreen", "orange", "tomato"), 
+          linetype = c(5, 2, 4)
+        ))
+      ) +
+      geom_vline(xintercept = range(ref_period), linetype = '22', col = custom_palette['ref'])
   }
   
   # Set colours for plotting sreries: black for reference, grey for the rest.
   series_colors <- setNames(
-  ifelse(indices$is_ref, "black", "grey80"), 
+  ifelse(indices$is_ref, custom_palette['main'], custom_palette['band']), 
   indices$Series
   )
 
@@ -440,38 +507,46 @@ plot_sos <- function(cidx,
     
     # Layer 1: Background (All non-reference series)
     geom_line(data = filter(indices, !is_ref), aes(color = Series)) +
-    geom_point()+
+    geom_point(aes(color = Series), size = 2)+
     
     # Layer 2: Foreground (The reference series only)
     geom_line(data = filter(indices, is_ref), aes(color = Series)) +
     geom_linerange(data = filter(indices, is_ref), aes(ymin = Lower, ymax = Upper, color = Series), linewidth = 0.5) +
     
     scale_color_manual(name = "Series", values = series_colors) +
-    scale_y_continuous('CPUE index', limits = c(0, NA)) +
+    scale_y_continuous('CPUE index', limits = function(x) c(0, max(pretty(x))), 
+                        expand = c(0, 0)) +
     scale_x_continuous( breaks=unique(indices$level),limits=range(unique(indices$level))) +
     theme_cowplot() +
     theme(panel.grid.major = element_line(colour = 'grey90')) +
-    (if(plot_exploitation){
+    (if(plot_exploitation && !is.null(landings_data)){
       list(
-        xlab('') ,   
+        xlab('') ,  
+        custom_theme, 
         theme(axis.text.x = element_blank())
       )
     } else{
       list(
+        coord_cartesian(clip = "off"),
         xlab('Fishing year') , 
-        theme(axis.text.x = element_text(vjust = 1, hjust = 1, angle = 45, size = rel(0.7)))
+        theme(axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15)),
+              plot.margin = margin(t = 50, r = 5, b = 5, l = 5),
+              legend.position = "top",        
+              legend.box = "horizontal"),
+              custom_theme
       )
-    })
+    }) 
+   
   
   # no legend for linetype if there is only one type
   if (length(unique(indices$Index)) == 1) {g1 <- g1 +  scale_linetype(guide = 'none') }
   # no legend for colour if we only plot reference series
-  if (length(unique(indices$Series)) == 1) { g1 <- g1 + guides(color = 'none') }
+  if (length(unique(indices$Series)) == 1 & !is.null(landings_data)) { g1 <- g1 + guides(color = 'none') }
   
   if (cpue_smooth) {g1 <- g1 + geom_smooth(data = this_idx, aes(x=level, y=index))}
   
   # If no landings data, we exit here
-  if(is.null(landings_data)) return(g1)  
+  if(is.null(landings_data)) return(g1 +guides(linewidth = 'none'))  
   
   #_____________________________________________________________________________
   # If have landings data: Removals plot and Exploitation rate plot
@@ -487,14 +562,16 @@ plot_sos <- function(cidx,
   # --- Removals plot ---
   
   g2 <- ggplot(landings,aes(level, landings))  +
-    scale_y_continuous('Removals (t)', limits=c(0, NA)) +
+    scale_y_continuous('Removals (t)', limits = function(x) c(0, max(pretty(x))), 
+                        expand = c(0, 0)) +
     scale_x_continuous( breaks=unique(landings$level),limits=range(unique(landings$level))) +
-    geom_line()+
-    geom_point()+
+    geom_line(color = custom_palette['main'])+
+    geom_point(color = custom_palette['main'], size = 2)+
     xlab('') +
     theme_cowplot() +
-    theme(axis.text.x = element_blank())
-  
+    custom_theme +
+    theme(axis.text.x = element_blank()) 
+
   # --- Exploitation rate plot ---
   if (plot_exploitation) {
     
@@ -502,30 +579,60 @@ plot_sos <- function(cidx,
     g3 <- ggplot(data = landings %>% filter(is_ref), aes(x=level, y=erate))  +
       scale_x_continuous('Fishing year',breaks=unique(landings$level),limits=range(unique(landings$level))) +
      # scale_x_continuous('Fishing year')+
-      scale_y_continuous('Relative exploitation rate', limits = c(0,NA)) +
-      geom_line()+
-      geom_point()+
+      scale_y_continuous('Relative exploitation rate', limits = function(x) c(0, max(pretty(x))), 
+                          expand = c(0, 0)) +
+      geom_line(color = custom_palette['main'])+
+      geom_point(color = custom_palette['main'], size = 2)+
       theme_cowplot() +
-      theme(axis.text.x = element_text(vjust = 1, hjust = 1, angle = 45, size = rel(0.7))) +
+      coord_cartesian(clip = "off") +
+      theme(axis.text.x = element_text(angle = 45, vjust = 1, margin = margin(t = 15))) +
+      custom_theme +
       if(!is.null(ref_period)){
         geom_hline(yintercept=ref_mean(landings$erate[ landings$is_ref & landings$level %in% ref_period])/ref_mult,
                    linetype='longdash', col='seagreen')
-      }
+      } 
+        
     
     # three plots
-    plot_combined <- (g2 / g1 / g3) + 
+    if(missing(custom_theme)){
+      plot_combined <- (g2 / g1 / g3) + 
       plot_layout(guides = "collect") + 
       plot_annotation(tag_levels = list(c("(a)", "(b)", "(c)"))) & 
       theme(panel.grid.major = element_line(colour = 'grey90'),
             plot.tag.position = c(0.06, 1.15),
+            legend.position = 'right',
             plot.margin = margin(t = 20, r = 2, b = 2, l = 2))
+
+    } else {
+    g1 <- g1 +
+  labs(tag = "(b)") +
+  theme(plot.tag.position = c(-0.02, 1.12))
+
+g2 <- g2 +
+  labs(tag = "(a)") +
+  theme(plot.tag.position = c(-0.02, 0.91))
+
+g3 <- g3 +
+  labs(tag = "(c)") +
+  theme(plot.tag.position = c(-0.02, 1.12))
+
+    plot_combined <- (g2 / g1 / g3) + 
+      plot_layout(guides = "collect")  & 
+      theme(legend.position = "top", 
+            legend.justification = "right",       
+            legend.box = "horizontal",               
+            panel.grid.major = element_line(colour = custom_palette['grid']),
+            plot.margin = margin(t = 10, r = 2, b = 2, l = 10))
+    }
     
     # two plots
-  } else {
+    } else {
     plot_combined <- (g2 / g1) + 
       plot_layout(guides = "collect") + 
       plot_annotation(tag_levels = list(c("(a)", "(b)", "(c)"))) & 
-      theme(panel.grid.major = element_line(colour = 'grey90'),
+      theme(legend.position = "top",        
+            legend.box = "horizontal",
+            panel.grid.major = element_line(colour = custom_palette['grid']),
             plot.tag.position = c(0.06, 1.1),
             plot.margin = margin(t = 20, r = 2, b = 2, l = 2))
   }
