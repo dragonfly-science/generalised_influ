@@ -1132,11 +1132,22 @@ cdi_plot_with_indicators <- function(preds_list, compare_preds_list = NULL) {
         comp_x_min <- min(comp_infl$Influence)
         comp_x_max <- max(comp_infl$Influence)
 
-        # Generate sign flip indicator:
-        influAdded <- infl$Influence[(nrow(comp_infl) + 1):nrow(infl)]
-        signLast <- sign(1 - last(comp_infl$Influence))
-        signNew <- sign(1 - influAdded)
-        indicators$signFlips <- any(signLast != signNew)
+        # Generate sign flip indicator: do the years ADDED since the comparison
+        # sit on the opposite side of 1 from the last comparison year?
+        # NB `(nrow(comp_infl) + 1):nrow(infl)` counts DOWN when the two series
+        # cover the same years (n+1 > n), indexing off the end and yielding NA.
+        # That happens whenever the comparison is code-vs-code on identical data
+        # (the ghoti PR regression test), so guard rather than emit a spurious
+        # value: with no added years the indicator is undefined, not FALSE.
+        n_added <- nrow(infl) - nrow(comp_infl)
+        indicators$signFlips <- if (n_added > 0) {
+          influAdded <- infl$Influence[(nrow(comp_infl) + 1):nrow(infl)]
+          signLast   <- sign(1 - last(comp_infl$Influence))
+          signNew    <- sign(1 - influAdded)
+          any(signLast != signNew)
+        } else {
+          NA
+        }
 
         # Generate outofRange indicator
         dist_above <- pmax(infl$Influence - max(comp_infl$Influence), 0)
