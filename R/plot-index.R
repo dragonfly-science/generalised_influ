@@ -443,20 +443,18 @@ plot_sos <- function(cidx,
       period_type == 'hard_limit' ~ bmsy_proxy/10
     )
     
+        
+    # Caculate index versus target %
+    currentIdx <- this_idx$index[which.max(this_idx$level)]
+    
     # Calculate base value
     b <- ref_mean(ref_vals) * ref_mult
-    # extract top 3 indices
-    last_3_idx <- this_idx  %>%
-  slice_max(order_by = level, n = 3, with_ties = FALSE) %>%
-  pull(index)
+    idxVsTarget <- scales::percent(currentIdx / b)
    
     # Calculate stock status indicator:
-   below_target <- any( last_3_idx < b)
+   below_target <- currentIdx < b
     
-    # Caculate index versus target %
-  currentIdx <- first(last_3_idx) 
-  idxVsTarget <- scales::percent(currentIdx / b)
-   
+    
     # Calcuate last year of status change
   statusChange <- this_idx %>%
       arrange(level) %>%
