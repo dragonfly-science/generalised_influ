@@ -13,7 +13,31 @@
 
 plot_step <- function(step_df, compare_step_df = NULL, custom_theme = NULL, custom_palette = default_palette){
   
-  model_names <- levels(step_df$Model)
+ model_names <- levels(step_df$Model)
+ has_comparision <- !is.null(compare_step_df)
+
+  if(has_comparision){
+  # Establish years in common:
+  common_years <- intersect(step_df$level, compare_step_df$level)
+    if(length(common_years) == 0) stop("The models do not have any overlapping years.")
+  # rescale the indices to the geometric mean of the years in common between the two models
+  rescale_indices <- function(df, overlap_yrs) {
+    df %>%
+      group_by(Model, Index) %>%
+      mutate(
+        gmeans = gmean(median[level %in% overlap_yrs]),
+        index  = median / gmeans,
+        Lower  = Lower / gmeans,
+        Upper  = Upper / gmeans
+      ) %>%
+      rename(`Index type` = Index) %>%
+      ungroup()
+  }
+  
+  step_df         <- rescale_indices(step_df, common_years)
+  compare_step_df <- rescale_indices(compare_step_df, common_years)
+  } 
+
   # Generate the background data for every facet
   # For each step, we take all data from that step and all previous steps
   df_all_steps <- lapply(seq_along(model_names), function(i) {
@@ -36,14 +60,16 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = NULL, cust
   )
   # ---Comparison logic---
   col1 <- custom_palette[['main']]
-  if(!is.null(compare_step_df)){
+  if(has_comparision){
     
+
     # transform comparison df and merge it with  all steps df
-    df_all_steps<- df_all_steps %>%
+    df_all_steps <- df_all_steps %>%
       bind_rows(compare_step_df %>%
                   mutate(FacetTarget = Model,
                          LineType = 'Compare')) 
-    
+            
+    # plot housekeeping
     legend_labels <- c(legend_labels, 'Compare'    = paste('Previous update to', max(as.numeric(as.character(compare_step_df$level)))))
     col1 <- custom_palette[['current']] 
   }
@@ -61,7 +87,7 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = NULL, cust
                             )
   
   # ---Plot code---
-  p <- ggplot(df_all_steps %>% arrange(LineType), aes(x = level, y = median, group = interaction(Model, LineType))) +
+  p <- ggplot(df_all_steps %>% arrange(LineType), aes(x = level, y = index, group = interaction(Model, LineType))) +
     geom_line(aes(color = LineType, linetype = LineType)) +
     scale_color_manual(values = c('Current' = col1, 'Compare' = custom_palette[['previous']], 'Reduced' = custom_palette[['reduced']], 'Previous' = col1 ),
                        labels = legend_labels) +
@@ -78,9 +104,9 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = NULL, cust
                  summarize(Model = last(Model),
                            
                            # Following mutate logic is all about location of facet labels
-                           is_upward = last(median) > first(median),
+                           is_upward = last(index) > first(index),
                            # Proximity Check: Is the start of the series closer to bottom or top of y-range?
-                           is_starting_low = mean(head(median)) < max(median) - mean(head(median)),
+                           is_starting_low = mean(head(index)) < max(index) - mean(head(index)),
                            # If it starts low and goes up -> Place at TOP (y = Inf), otherwise place at BOTTOM (y = -Inf)
                            y_pos = if_else(is_starting_low & is_upward, Inf, -Inf),
                            v_just = if_else(y_pos == Inf, 1.1, -0.1),
@@ -122,4 +148,4 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = NULL, cust
     custom_theme 
   
   return(p)
-}
+  }
