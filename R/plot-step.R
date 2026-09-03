@@ -26,7 +26,7 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = NULL, cust
       group_by(Model, Index) %>%
       mutate(
         gmeans = gmean(median[level %in% overlap_yrs]),
-        index  = median / gmeans,
+        median  = median / gmeans,
         Lower  = Lower / gmeans,
         Upper  = Upper / gmeans
       ) %>%
@@ -87,7 +87,7 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = NULL, cust
                             )
   
   # ---Plot code---
-  p <- ggplot(df_all_steps %>% arrange(LineType), aes(x = level, y = index, group = interaction(Model, LineType))) +
+  p <- ggplot(df_all_steps %>% arrange(LineType), aes(x = level, y = median, group = interaction(Model, LineType))) +
     geom_line(aes(color = LineType, linetype = LineType)) +
     scale_color_manual(values = c('Current' = col1, 'Compare' = custom_palette[['previous']], 'Reduced' = custom_palette[['reduced']], 'Previous' = col1 ),
                        labels = legend_labels) +
@@ -104,9 +104,9 @@ plot_step <- function(step_df, compare_step_df = NULL, custom_theme = NULL, cust
                  summarize(Model = last(Model),
                            
                            # Following mutate logic is all about location of facet labels
-                           is_upward = last(index) > first(index),
+                           is_upward = last(median) > first(median),
                            # Proximity Check: Is the start of the series closer to bottom or top of y-range?
-                           is_starting_low = mean(head(index)) < max(index) - mean(head(index)),
+                           is_starting_low = mean(head(median)) < max(median) - mean(head(median)),
                            # If it starts low and goes up -> Place at TOP (y = Inf), otherwise place at BOTTOM (y = -Inf)
                            y_pos = if_else(is_starting_low & is_upward, Inf, -Inf),
                            v_just = if_else(y_pos == Inf, 1.1, -0.1),
